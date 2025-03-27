@@ -1,0 +1,1 @@
+// global theme settings and color palette
