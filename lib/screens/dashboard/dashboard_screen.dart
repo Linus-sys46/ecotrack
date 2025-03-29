@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:ecotrack/services/auth_service.dart';
+import '../../config/theme.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   void _logout(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
       await AuthService().signOut();
-      Navigator.pushReplacementNamed(context, '/login');
+      navigator.pushReplacementNamed('/login');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Logout failed: ${e.toString()}')),
       );
     }
@@ -19,7 +23,9 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false, // Disable the back button
         title: const Text("Dashboard"),
+        backgroundColor: AppTheme.primaryColor, // Use primaryColor
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

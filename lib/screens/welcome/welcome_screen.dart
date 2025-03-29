@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/theme.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -21,7 +22,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 1),
+      duration: const Duration(seconds: 0),
     );
 
     _fadeAnimation = CurvedAnimation(
@@ -44,10 +45,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (_lastBackPressed == null ||
         now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
       _lastBackPressed = now;
+
+      if (!mounted) return false; // Ensure the widget is still mounted
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Press back again to exit"),
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 1),
         ),
       );
       return false; // Prevents exiting immediately
@@ -61,7 +64,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return WillPopScope(
       onWillPop: _onWillPop, // Handles back press behavior
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8F5E9), // Light green background
+        backgroundColor:
+            AppTheme.backgroundColor, // Use backgroundColor from theme
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
@@ -78,7 +82,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   width: 120,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Color(0xFF4CAF50), // Dark green logo placeholder
+                    color: AppTheme.primaryColor, // Use primaryColor from theme
                   ),
                   child: const Icon(
                     Icons.eco,
@@ -100,7 +104,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E7D32), // Dark green heading
+                    color: AppTheme
+                        .secondaryColor, // Use secondaryColor from theme
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -136,7 +141,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   onPressed: () => Navigator.pushNamedAndRemoveUntil(
                       context, '/signup', (route) => false),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF43A047), // Bright green button
+                    backgroundColor: AppTheme.primaryColor, // Use primaryColor
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(

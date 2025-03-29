@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:ecotrack/services/auth_service.dart';
+import '../../config/theme.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -74,18 +75,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
         fullNameController.text.trim(),
       );
 
-      if (response.session != null) {
+      if (response.session != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Successfully registered!"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        await Future.delayed(const Duration(seconds: 2));
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Successfully registered!"),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-
-          await Future.delayed(const Duration(seconds: 2));
-
           Navigator.pushReplacementNamed(context, '/dashboard');
         }
       }
@@ -103,7 +104,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9),
+      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -117,7 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 width: 100,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF4CAF50),
+                  color: AppTheme.primaryColor,
                 ),
                 child: const Icon(Icons.person, color: Colors.white, size: 50),
               ),
@@ -130,7 +131,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E7D32),
+                  color: AppTheme.secondaryColor,
                 ),
               ),
 
@@ -144,7 +145,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   errorText: fullNameError,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: AppTheme.primaryColor),
                   ),
                   filled: true,
                   fillColor: Colors.white,
@@ -162,7 +163,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   errorText: emailError,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: AppTheme.primaryColor),
                   ),
                   filled: true,
                   fillColor: Colors.white,
@@ -184,7 +185,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   errorText: passwordError,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: AppTheme.primaryColor),
                   ),
                   filled: true,
                   fillColor: Colors.white,
@@ -222,7 +223,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   : ElevatedButton(
                       onPressed: _signup,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
@@ -251,7 +252,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     TextSpan(
                       text: "Login",
                       style: const TextStyle(
-                        color: Color(0xFF4CAF50),
+                        color: AppTheme.primaryColor,
                         fontWeight: FontWeight.bold,
                       ),
                       recognizer: TapGestureRecognizer()

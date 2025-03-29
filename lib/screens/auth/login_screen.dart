@@ -1,6 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:ecotrack/services/auth_service.dart';
+import '../../widgets/custom_button.dart';
+import '../../utils/helpers.dart';
+import '../../config/theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,9 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _validateEmail() {
     setState(() {
-      emailError = emailController.text.trim().isEmpty
-          ? 'Please fill out this field'
-          : null;
+      emailError = validateEmail(emailController.text.trim());
     });
   }
 
@@ -54,33 +55,42 @@ class _LoginScreenState extends State<LoginScreen> {
         passwordController.text.trim(),
       );
 
+      if (!mounted) return; // Ensure the widget is still mounted
       if (response.session != null) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
         _showErrorMessage("Invalid login credentials");
       }
     } catch (e) {
+      if (mounted) {
       _showErrorMessage("Invalid login credentials");
     }
+    }
 
+    if (mounted) {
     setState(() => isLoading = false);
   }
+}
 
-  void _forgotPassword() async {
+void _forgotPassword() async {
     setState(() => isForgotPasswordLoading = true);
 
     await Future.delayed(const Duration(seconds: 1));
+
+    if (!mounted) return; // Ensure the widget is still mounted
     Navigator.pushNamed(context, '/forgot-password');
 
+    if (mounted) {
     setState(() => isForgotPasswordLoading = false);
   }
+}
 
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         duration: const Duration(seconds: 3),
-        backgroundColor: const Color.fromARGB(255, 153, 49, 41),
+        backgroundColor: AppTheme.errorColor, // Use errorColor from theme
       ),
     );
   }
@@ -88,7 +98,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9),
+      backgroundColor:
+          AppTheme.backgroundColor, // Use backgroundColor from theme
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -102,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 100,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF4CAF50),
+                  color: AppTheme.primaryColor, // Use primaryColor from theme
                 ),
                 child: const Icon(Icons.eco, color: Colors.white, size: 50),
               ),
@@ -115,7 +126,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E7D32),
+                  color:
+                      AppTheme.secondaryColor, // Use secondaryColor from theme
                 ),
               ),
 
@@ -129,7 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   errorText: emailError,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(
+                        color: AppTheme.primaryColor), // Use primaryColor
                   ),
                   filled: true,
                   fillColor: Colors.white,
@@ -147,7 +160,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   errorText: passwordError,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(
+                        color: AppTheme.primaryColor), // Use primaryColor
                   ),
                   filled: true,
                   fillColor: Colors.white,
@@ -185,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           "Forgot Password?",
                           style: TextStyle(
-                            color: Color(0xFF4CAF50),
+                            color: AppTheme.primaryColor, // Use primaryColor
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
@@ -210,7 +224,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   : ElevatedButton(
                       onPressed: _login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor:
+                            AppTheme.primaryColor, // Use primaryColor
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
@@ -239,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextSpan(
                       text: "Sign Up",
                       style: const TextStyle(
-                        color: Color(0xFF4CAF50),
+                        color: AppTheme.primaryColor, // Use primaryColor
                         fontWeight: FontWeight.bold,
                       ),
                       recognizer: TapGestureRecognizer()
