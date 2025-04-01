@@ -115,7 +115,9 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                   itemBuilder: (context, index) {
                     if (!isExpanded && index == 3) {
                       // Show "View All" link as the 4th item
-                      return Center(
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                            left: 8.0), // Align with card padding
                         child: GestureDetector(
                           onTap: () {
                             setState(() {
@@ -135,7 +137,9 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
 
                     if (isExpanded && index == activities.length) {
                       // Show "See Less" link as the last item
-                      return Center(
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                            left: 8.0), // Align with card padding
                         child: GestureDetector(
                           onTap: () {
                             setState(() {

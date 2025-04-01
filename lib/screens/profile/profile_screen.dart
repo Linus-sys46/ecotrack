@@ -67,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
+    // Removed unused variable 'screenWidth'
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
