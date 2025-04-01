@@ -3,7 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/theme.dart';
 
 class LogActivityCard extends StatefulWidget {
-  const LogActivityCard({super.key});
+  final bool redirectToActivities; // Determines where to redirect after logging
+  const LogActivityCard({super.key, this.redirectToActivities = false});
 
   @override
   State<LogActivityCard> createState() => _LogActivityCardState();
@@ -47,9 +48,14 @@ class _LogActivityCardState extends State<LogActivityCard> {
       // Insert the data into the 'activities' table
       await supabase.from('activities').insert(activityData);
 
-      setState(() {
-        resultMessage = "Activity logged successfully!";
-      });
+      if (mounted) {
+        // Redirect based on the `redirectToActivities` flag
+        if (widget.redirectToActivities) {
+          Navigator.of(context).pushReplacementNamed('/activities');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/dashboard');
+        }
+      }
     } catch (error) {
       setState(() {
         resultMessage = "Failed to log activity: $error";
