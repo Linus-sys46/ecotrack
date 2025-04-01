@@ -107,78 +107,104 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : activities.isEmpty
               ? const Center(child: Text("No activities logged yet."))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: isExpanded
-                      ? activities.length + 1 // Add 1 for "See Less" link
-                      : (activities.length > 3 ? 4 : activities.length), // Show 3 activities + "View All" link
-                  itemBuilder: (context, index) {
-                    if (!isExpanded && index == 3) {
-                      // Show "View All" link as the 4th item
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                            left: 8.0), // Align with card padding
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              isExpanded = true; // Expand the list
-                            });
-                          },
-                          child: Text(
-                            "View All",
-                            style: TextStyle(
-                              color: Colors.blue, // Intuitive color for "View All"
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (isExpanded && index == activities.length) {
-                      // Show "See Less" link as the last item
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                            left: 8.0), // Align with card padding
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              isExpanded = false; // Collapse the list
-                            });
-                          },
-                          child: Text(
-                            "See Less",
-                            style: TextStyle(
-                              color: Colors.red, // Intuitive color for "See Less"
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final activity = activities[index];
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          getIconForType(activity['type']),
-                          color: AppTheme.primaryColor,
-                        ),
-                        title: Text(activity['type'] ?? "Unknown"),
-                        subtitle: Text(activity['details'] ?? "No details"),
-                        trailing: Text(
-                          formatRelativeDate(activity['created_at']),
-                          style: AppTheme.lightTheme.textTheme.bodyMedium,
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        "Recent Activity",
+                        style:
+                            AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.secondaryColor,
                         ),
                       ),
-                    );
-                  },
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        itemCount: isExpanded
+                            ? activities.length + 1 // Add 1 for "See Less" link
+                            : (activities.length > 3
+                                ? 4
+                                : activities
+                                    .length), // Show 3 activities + "View All" link
+                        itemBuilder: (context, index) {
+                          if (!isExpanded && index == 3) {
+                            // Show "View All" link as the 4th item
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                  left: 8.0), // Align with card padding
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    isExpanded = true; // Expand the list
+                                  });
+                                },
+                                child: Text(
+                                  "View All",
+                                  style: TextStyle(
+                                    color: Colors
+                                        .blue, // Intuitive color for "View All"
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (isExpanded && index == activities.length) {
+                            // Show "See Less" link as the last item
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                  left: 8.0), // Align with card padding
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    isExpanded = false; // Collapse the list
+                                  });
+                                },
+                                child: Text(
+                                  "See Less",
+                                  style: TextStyle(
+                                    color: Colors
+                                        .red, // Intuitive color for "See Less"
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          final activity = activities[index];
+                          return Card(
+                            child: ListTile(
+                              leading: Icon(
+                                getIconForType(activity['type']),
+                                color: AppTheme.primaryColor,
+                              ),
+                              title: Text(activity['type'] ?? "Unknown"),
+                              subtitle:
+                                  Text(activity['details'] ?? "No details"),
+                              trailing: Text(
+                                formatRelativeDate(activity['created_at']),
+                                style: AppTheme.lightTheme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: onFabPressed,
         backgroundColor: AppTheme.primaryColor,
-        child: const Icon(Icons.add),
+        shape: const CircleBorder(), // Ensure the button is circular
+        child: const Icon(Icons.add, size: 28, color: Colors.white),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

@@ -116,42 +116,47 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false, // Prevents screen content from moving up
-      backgroundColor: AppTheme.backgroundColor,
-      body: SafeArea(
-        child: KeyboardVisibilityBuilder(
-          builder: (context, isKeyboardVisible) {
-            return Center(
+      body: Stack(
+        children: [
+          // Solid color for the status bar area
+          Container(
+            height: MediaQuery.of(context).padding.top, // Covers the status bar
+            color: AppTheme.primaryColor, // Same color as the buttons
+          ),
+          SafeArea(
+            child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!isKeyboardVisible) // Hide logo when keyboard is open
-                      Column(
-                        children: [
-                          Container(
-                            height: 100,
-                            width: 100,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppTheme.primaryColor,
-                            ),
-                            child: const Icon(Icons.eco,
-                                color: Colors.white, size: 50),
+                    // Logo and Title
+                    Column(
+                      children: [
+                        Container(
+                          height: 100,
+                          width: 100,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.primaryColor,
                           ),
-                          const SizedBox(height: 30),
-                          Text(
-                            "Login",
-                            textAlign: TextAlign.center,
-                            style: AppTheme.lightTheme.textTheme.displayLarge
-                                ?.copyWith(
-                              color: AppTheme.secondaryColor,
-                            ),
+                          child: const Icon(Icons.eco,
+                              color: Colors.white, size: 50),
+                        ),
+                        const SizedBox(height: 30),
+                        Text(
+                          "Login",
+                          textAlign: TextAlign.center,
+                          style: AppTheme.lightTheme.textTheme.displayLarge
+                              ?.copyWith(
+                            color: AppTheme.secondaryColor,
                           ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                    // Email Field
                     TextField(
                       controller: emailController,
                       decoration: InputDecoration(
@@ -169,10 +174,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       onChanged: (_) {
                         if (emailError != null) _validateEmail();
                       },
-                      onEditingComplete:
-                          _validateEmail, // Final validation when editing is complete
+                      onEditingComplete: _validateEmail,
                     ),
                     const SizedBox(height: 12),
+                    // Password Field
                     TextField(
                       controller: passwordController,
                       decoration: InputDecoration(
@@ -203,6 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onChanged: (_) => _validatePassword(),
                     ),
                     const SizedBox(height: 8),
+                    // Forgot Password
                     Align(
                       alignment: Alignment.centerRight,
                       child: isForgotPasswordLoading
@@ -224,6 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                     ),
                     const SizedBox(height: 20),
+                    // Login Button
                     isLoading
                         ? const Center(
                             child: SizedBox(
@@ -255,6 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                     const SizedBox(height: 12),
+                    // Sign Up Link
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
@@ -283,9 +291,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }

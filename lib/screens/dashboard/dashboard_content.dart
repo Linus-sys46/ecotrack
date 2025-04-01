@@ -86,6 +86,16 @@ class DashboardContent extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // Weekly Summary Text
+          Text(
+            "You're making steady progress! Keep up the great work to reduce your carbon footprint even further.",
+            style: AppTheme.lightTheme.textTheme.bodyLarge?.copyWith(
+              color: AppTheme.secondaryColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Category Breakdown
           Text(
             "Category Breakdown",
