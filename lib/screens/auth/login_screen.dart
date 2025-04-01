@@ -3,7 +3,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:ecotrack/services/auth_service.dart';
-import '../../utils/helpers.dart';
 import '../../config/theme.dart';
 
 class LoginScreen extends StatefulWidget {
