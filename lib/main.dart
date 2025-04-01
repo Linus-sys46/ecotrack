@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: AppConstants.appName,
-      theme: AppTheme.lightTheme, // Use lightTheme from theme
+      theme: AppTheme.lightTheme, 
       initialRoute: '/',
       onGenerateRoute: AppRoutes.generateRoute,
     );

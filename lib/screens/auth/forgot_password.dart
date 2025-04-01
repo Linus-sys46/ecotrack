@@ -66,8 +66,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
-                color: AppTheme.secondaryColor, // Use secondaryColor
-              ),
+                color: AppTheme.secondaryColor,
+              ), // Use AppTheme.textTheme.bodyLarge if applicable
             ),
             const SizedBox(height: 20),
             TextField(
@@ -109,7 +109,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                      ),
+                      ), // Use AppTheme.textTheme.titleLarge if applicable
                     ),
                   ),
           ],

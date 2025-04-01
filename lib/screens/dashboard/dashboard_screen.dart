@@ -1,78 +1,92 @@
+import 'package:ecotrack/screens/dashboard/dashboard_content.dart';
+import 'package:ecotrack/screens/insights/insights_screen.dart';
+import 'package:ecotrack/screens/logging/activities_screen.dart';
+import 'package:ecotrack/screens/logging/log_activity_card.dart';
+import 'package:ecotrack/screens/logging/quicklog_screen.dart';
+import 'package:ecotrack/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:ecotrack/services/auth_service.dart';
 import '../../config/theme.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
-  void _logout(BuildContext context) async {
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
 
-    try {
-      await AuthService().signOut();
-      navigator.pushReplacementNamed('/login');
-    } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Logout failed: ${e.toString()}')),
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _pages = [
+    const DashboardContent(), // Dashboard
+    const ActivitiesScreen(), // Activities
+    const QuickLogScreen(), // Quick Log
+    const InsightsScreen(), // Insights
+    const ProfileScreen(), // Profile
+  ];
+
+  void _onItemTapped(int index) {
+    if (index == 2) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        builder: (context) => const LogActivityCard(), // Open LogActivityCard
       );
+    } else {
+      setState(() {
+        _selectedIndex = index;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isDashboard = _selectedIndex == 0;
+
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false, // Disable the back button
-        title: const Text("Dashboard"),
-        backgroundColor: AppTheme.primaryColor, // Use primaryColor
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
+      appBar: isDashboard
+          ? AppBar(
+              automaticallyImplyLeading: false, // Removes the back button
+              title: const Text("Dashboard"),
+              backgroundColor: AppTheme.primaryColor,
+            )
+          : null, // No AppBar for other screens
+
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages, // Preloaded pages
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Welcome to Ecotrack Dashboard!",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Here's what you can do:",
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 10),
-            ListTile(
-              leading: const Icon(Icons.emoji_transportation),
-              title: const Text("Track Your Transport Footprint"),
-              onTap: () => Navigator.pushNamed(context, '/transportTracking'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.bolt),
-              title: const Text("Monitor Your Energy Usage"),
-              onTap: () => Navigator.pushNamed(context, '/energyTracking'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.food_bank),
-              title: const Text("Log Your Food Consumption"),
-              onTap: () => Navigator.pushNamed(context, '/foodTracking'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.insights),
-              title: const Text("View Insights and Recommendations"),
-              onTap: () => Navigator.pushNamed(context, '/insights'),
-            ),
+
+      bottomNavigationBar: SafeArea(
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppTheme.primaryColor,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard), label: "Dashboard"),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.list), label: "Activities"),
+            BottomNavigationBarItem(icon: Icon(null), label: ""), // Quick Log
+            BottomNavigationBarItem(
+                icon: Icon(Icons.insights), label: "Insights"),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
           ],
         ),
       ),
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _onItemTapped(2), // Opens the Quick Log modal
+        backgroundColor: AppTheme.primaryColor,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, size: 28, color: Colors.white),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }
-
-
