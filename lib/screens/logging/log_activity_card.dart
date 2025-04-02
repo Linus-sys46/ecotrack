@@ -43,6 +43,7 @@ class _LogActivityCardState extends State<LogActivityCard> {
         'type': selectedCategory, // Use 'type' for category
         'details': detailsController.text.trim(), // Use 'details' for extra info
         'user_id': userId, // Include the authenticated user's ID
+        'created_at': 'now()', // Use Supabase's server-side timestamp
       };
 
       // Insert the data into the 'activities' table

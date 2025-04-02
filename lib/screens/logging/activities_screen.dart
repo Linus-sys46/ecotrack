@@ -27,12 +27,22 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     setState(() => isLoading = true);
 
     try {
-      // Fetch the latest 10 activities sorted by creation time in descending order
+      // Get the authenticated user's ID
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        setState(() {
+          activities = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      // Fetch activities for the current user, sorted by creation time in descending order
       final response = await supabase
           .from('activities')
           .select('*')
-          .order('created_at', ascending: false)
-          .limit(10); // Limit to the latest 10 activities
+          .eq('user_id', userId) // Filter by user ID
+          .order('created_at', ascending: false); // Sort by time, descending
 
       setState(() {
         activities = List<Map<String, dynamic>>.from(response);
@@ -56,7 +66,9 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
 
   String formatRelativeDate(String? timestamp) {
     if (timestamp == null) return "Unknown";
-    final DateTime date = DateTime.parse(timestamp).toLocal();
+    final DateTime date = DateTime.parse(timestamp)
+        .toUtc()
+        .toLocal(); // Convert UTC to local time
     final DateTime now = DateTime.now();
 
     if (DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(now)) {
