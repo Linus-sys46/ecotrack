@@ -1,1 +1,1 @@
-// Api integration(Climatiq calls)
+// Api integration (Climatiq calls)

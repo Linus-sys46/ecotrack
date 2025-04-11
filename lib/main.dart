@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'package:ecotrack/config/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,7 +22,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: AppConstants.appName,
       theme: AppTheme.lightTheme, 
-      initialRoute: '/',
+      initialRoute: '/dashboard',
       onGenerateRoute: AppRoutes.generateRoute,
     );
   }
