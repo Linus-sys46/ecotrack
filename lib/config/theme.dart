@@ -126,20 +126,20 @@ class AppTheme {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
-      indicatorColor: accentColor.withAlpha(51), // Sunny Yellow highlight
+      indicatorColor: accentColor.withAlpha(51), 
       labelTextStyle: WidgetStateProperty.resolveWith<TextStyle?>(
         (states) {
           if (states.contains(WidgetState.selected)) {
             return GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: textPrimary, // Charcoal for active label
+              color: textPrimary, 
             );
           }
           return GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w400,
-            color: textSecondary.withAlpha(204), // Slightly more visible
+            color: textSecondary.withAlpha(204),
           );
         },
       ),
@@ -147,18 +147,18 @@ class AppTheme {
         (states) {
           if (states.contains(WidgetState.selected)) {
             return IconThemeData(
-              color: textPrimary, // Charcoal for active icons
+              color: textPrimary,
               size: 28,
             );
           }
           return IconThemeData(
-            color: textSecondary.withAlpha(204), // Slightly more visible
+            color: textSecondary.withAlpha(204), 
             size: 28,
           );
         },
       ),
-      height: 70, // Increased height for better visibility
-      elevation: 5, // Add shadow for depth
+      height: 70,
+      elevation: 5, 
     ),
   );
 }

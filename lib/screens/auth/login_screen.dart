@@ -1,33 +1,32 @@
 import 'package:ecotrack/screens/dashboard/dashboard_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:ecotrack/services/auth_service.dart';
 import '../../config/theme.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+const LoginScreen({super.key});
 
-  @override
+@override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final AuthService _authService = AuthService();
+final AuthService _authService = AuthService();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
   bool isForgotPasswordLoading = false;
   bool isPasswordVisible = false;
 
-  String? emailError;
+String? emailError;
   String? passwordError;
 
-  final RegExp _emailRegex = RegExp(
+final RegExp _emailRegex = RegExp(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
   );
 
-  void _validateEmail() {
+void _validateEmail() {
     setState(() {
       final email = emailController.text.trim();
       if (email.isEmpty) {
@@ -40,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _validatePassword() {
+void _validatePassword() {
     setState(() {
       passwordError = passwordController.text.trim().isEmpty
           ? 'Please fill out this field'
@@ -48,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _login() async {
+void _login() async {
     setState(() {
       _validateEmail();
       _validatePassword();
@@ -89,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _forgotPassword() async {
+void _forgotPassword() async {
     setState(() => isForgotPasswordLoading = true);
 
     await Future.delayed(const Duration(seconds: 1));
@@ -102,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showErrorMessage(String message) {
+void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -112,16 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false, // Prevents screen content from moving up
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Solid color for the status bar area
           Container(
-            height: MediaQuery.of(context).padding.top, // Covers the status bar
-            color: AppTheme.primaryColor, // Same color as the buttons
+            height: MediaQuery.of(context).padding.top,
+            color: AppTheme.primaryColor,
           ),
           SafeArea(
             child: Center(
@@ -131,7 +129,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo and Title
                     Column(
                       children: [
                         Container(
@@ -150,13 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                           style: AppTheme.lightTheme.textTheme.displayLarge
                               ?.copyWith(
-                            color: AppTheme.secondaryColor,
+                            color: AppTheme.primaryColor,
                           ),
                         ),
                         const SizedBox(height: 20),
                       ],
                     ),
-                    // Email Field
                     TextField(
                       controller: emailController,
                       decoration: InputDecoration(
@@ -177,7 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       onEditingComplete: _validateEmail,
                     ),
                     const SizedBox(height: 12),
-                    // Password Field
                     TextField(
                       controller: passwordController,
                       decoration: InputDecoration(
@@ -208,7 +203,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       onChanged: (_) => _validatePassword(),
                     ),
                     const SizedBox(height: 8),
-                    // Forgot Password
                     Align(
                       alignment: Alignment.centerRight,
                       child: isForgotPasswordLoading
@@ -230,7 +224,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                     ),
                     const SizedBox(height: 20),
-                    // Login Button
                     isLoading
                         ? const Center(
                             child: SizedBox(
@@ -262,7 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                     const SizedBox(height: 12),
-                    // Sign Up Link
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(

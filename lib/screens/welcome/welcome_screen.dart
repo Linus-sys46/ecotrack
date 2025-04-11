@@ -13,7 +13,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  // Tracks back press timing
   DateTime? _lastBackPressed;
 
   @override
@@ -65,16 +64,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       onWillPop: _onWillPop, // Handles back press behavior
       child: Scaffold(
         backgroundColor:
-            AppTheme.backgroundColor, // Use backgroundColor from theme
+            AppTheme.backgroundColor, 
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Spacer(flex: 2), // Reduced top spacing for better balance
-
-              // Animated Logo
+              const Spacer(flex: 2), 
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Container(
@@ -82,7 +79,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   width: 120,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppTheme.primaryColor, // Use primaryColor from theme
+                    color: AppTheme.primaryColor, 
                   ),
                   child: const Icon(
                     Icons.eco,
@@ -94,8 +91,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               ),
 
               const SizedBox(height: 30),
-
-              // Animated Heading: "Carbon Tracker"
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: const Text(
@@ -105,7 +100,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
                     color: AppTheme
-                        .secondaryColor, // Use secondaryColor from theme
+                        .secondaryColor, 
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -113,7 +108,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
               const SizedBox(height: 12),
 
-              // Animated Subtitle
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: const Text(
@@ -121,15 +115,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
-                    color: Color(0xFF388E3C), // Medium green text
+                    color: Color(0xFF388E3C), 
                     height: 1.5,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 100), // Spacer replaced with more precise control
-
-              // "Get Started" Button with Scale Animation
+              const SizedBox(height: 100), 
               ScaleTransition(
                 scale: Tween<double>(begin: 1.0, end: 1.05).animate(
                   CurvedAnimation(
@@ -141,7 +133,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   onPressed: () => Navigator.pushNamedAndRemoveUntil(
                       context, '/signup', (route) => false),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor, // Use primaryColor
+                    backgroundColor: AppTheme.primaryColor, 
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
@@ -159,7 +151,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 ),
               ),
 
-              const Spacer(flex: 2), // Slight bottom spacing for better visual balance
+              const Spacer(flex: 2),
             ],
           ),
         ),

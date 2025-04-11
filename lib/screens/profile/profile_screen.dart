@@ -172,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // User Info
+          
                             Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: Column(
@@ -201,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Your Impact Section
+                        
                             Card(
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
@@ -254,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Account Information Section
+                           
                             Card(
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
@@ -291,7 +291,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Logout Button
                             Center(
                               child: GestureDetector(
                                 onTap: () async {
@@ -360,8 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 40),
-
-                            // Footer
+                      
                             Center(
                               child: Text(
                                 "Powered by Ecotrack",

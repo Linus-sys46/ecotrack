@@ -16,7 +16,6 @@ class _InputScreenState extends State<InputScreen> {
   final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  // Form field controllers
   final _siteController = TextEditingController();
   String? _primarySource;
   final _primaryAmountController = TextEditingController();
@@ -26,17 +25,14 @@ class _InputScreenState extends State<InputScreen> {
   final _customReplenishController = TextEditingController();
   final _hoursController = TextEditingController();
 
-  // State variables
   bool isLoading = false;
   String? errorMessage;
   String? successMessage;
   bool hasSubmitted = false;
 
-  // Options for dropdowns
   final List<String> energySources = ['LPG', 'Charcoal', 'Electricity', 'Diesel', 'Other'];
   final List<String> replenishOptions = ['Per Day', 'Daily', 'Weekly', 'Monthly', 'Other'];
 
-  // Filter secondary source options based on primary source
   List<String> getAvailableSecondarySources() {
     if (_primarySource == null) {
       return energySources;
@@ -80,7 +76,6 @@ class _InputScreenState extends State<InputScreen> {
         return;
       }
 
-      // Determine the replenish value to submit
       final String replenishValue = _replenish == 'Other'
           ? _customReplenishController.text.trim()
           : _replenish!;
@@ -100,7 +95,8 @@ class _InputScreenState extends State<InputScreen> {
       };
 
       // Submit to Supabase
-      final response = await supabase.from('emissions').insert(emissionData).select();
+      final response =
+          await supabase.from('emissions').insert(emissionData).select();
 
       if (response.isNotEmpty) {
         setState(() {
@@ -177,7 +173,7 @@ class _InputScreenState extends State<InputScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Form Card
+    
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -187,10 +183,11 @@ class _InputScreenState extends State<InputScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Site
+            
                             Text(
                               "Site",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -199,7 +196,8 @@ class _InputScreenState extends State<InputScreen> {
                               controller: _siteController,
                               decoration: const InputDecoration(
                                 hintText: "e.g., Chilton’s Restaurant",
-                                prefixIcon: Icon(Icons.location_on, color: AppTheme.primaryColor),
+                                prefixIcon: Icon(Icons.location_on,
+                                    color: AppTheme.primaryColor),
                               ),
                               onChanged: (value) {
                                 _clearErrorMessage();
@@ -216,10 +214,11 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Primary Source
+              
                             Text(
                               "Primary Energy Source",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -228,7 +227,8 @@ class _InputScreenState extends State<InputScreen> {
                               value: _primarySource,
                               decoration: const InputDecoration(
                                 hintText: "Select primary source",
-                                prefixIcon: Icon(Icons.power, color: AppTheme.primaryColor),
+                                prefixIcon: Icon(Icons.power,
+                                    color: AppTheme.primaryColor),
                               ),
                               items: energySources.map((source) {
                                 return DropdownMenuItem<String>(
@@ -258,10 +258,11 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Primary Amount
+          
                             Text(
                               "Primary Amount (kg or kWh)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -270,7 +271,8 @@ class _InputScreenState extends State<InputScreen> {
                               controller: _primaryAmountController,
                               decoration: const InputDecoration(
                                 hintText: "e.g., 20",
-                                prefixIcon: Icon(Icons.scale, color: AppTheme.primaryColor),
+                                prefixIcon: Icon(Icons.scale,
+                                    color: AppTheme.primaryColor),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -283,7 +285,8 @@ class _InputScreenState extends State<InputScreen> {
                                 if (value == null || value.trim().isEmpty) {
                                   return "Please enter the primary amount.";
                                 }
-                                if (double.tryParse(value) == null || double.parse(value) <= 0) {
+                                if (double.tryParse(value) == null ||
+                                    double.parse(value) <= 0) {
                                   return "Please enter a valid positive number.";
                                 }
                                 return null;
@@ -291,10 +294,11 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Secondary Source (Optional)
+                  
                             Text(
                               "Secondary Energy Source (Optional)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -303,7 +307,8 @@ class _InputScreenState extends State<InputScreen> {
                               value: _secondarySource,
                               decoration: const InputDecoration(
                                 hintText: "Select secondary source",
-                                prefixIcon: Icon(Icons.power, color: AppTheme.accentColor),
+                                prefixIcon: Icon(Icons.power,
+                                    color: AppTheme.accentColor),
                               ),
                               items: availableSecondarySources.map((source) {
                                 return DropdownMenuItem<String>(
@@ -323,10 +328,10 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Secondary Amount (Optional)
                             Text(
                               "Secondary Amount (kg or kWh, Optional)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -335,7 +340,8 @@ class _InputScreenState extends State<InputScreen> {
                               controller: _secondaryAmountController,
                               decoration: const InputDecoration(
                                 hintText: "e.g., 10",
-                                prefixIcon: Icon(Icons.scale, color: AppTheme.accentColor),
+                                prefixIcon: Icon(Icons.scale,
+                                    color: AppTheme.accentColor),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -348,18 +354,19 @@ class _InputScreenState extends State<InputScreen> {
                                 if (value == null || value.trim().isEmpty) {
                                   return null; // Optional field
                                 }
-                                if (double.tryParse(value) == null || double.parse(value) <= 0) {
+                                if (double.tryParse(value) == null ||
+                                    double.parse(value) <= 0) {
                                   return "Please enter a valid positive number.";
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 16),
-
-                            // Replenish
+            
                             Text(
                               "Replenish Frequency",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -368,7 +375,8 @@ class _InputScreenState extends State<InputScreen> {
                               value: _replenish,
                               decoration: const InputDecoration(
                                 hintText: "Select frequency",
-                                prefixIcon: Icon(Icons.eco, color: AppTheme.primaryColor),
+                                prefixIcon: Icon(Icons.eco,
+                                    color: AppTheme.primaryColor),
                               ),
                               items: replenishOptions.map((option) {
                                 return DropdownMenuItem<String>(
@@ -397,7 +405,8 @@ class _InputScreenState extends State<InputScreen> {
                               const SizedBox(height: 16),
                               Text(
                                 "Custom Replenish Frequency",
-                                style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                                style: AppTheme.lightTheme.textTheme.titleLarge
+                                    ?.copyWith(
                                   color: AppTheme.primaryColor,
                                 ),
                               ),
@@ -406,7 +415,8 @@ class _InputScreenState extends State<InputScreen> {
                                 controller: _customReplenishController,
                                 decoration: const InputDecoration(
                                   hintText: "e.g., Biweekly",
-                                  prefixIcon: Icon(Icons.edit, color: AppTheme.primaryColor),
+                                  prefixIcon: Icon(Icons.edit,
+                                      color: AppTheme.primaryColor),
                                 ),
                                 onChanged: (value) {
                                   _clearErrorMessage();
@@ -415,7 +425,8 @@ class _InputScreenState extends State<InputScreen> {
                                   }
                                 },
                                 validator: (value) {
-                                  if (_replenish == 'Other' && (value == null || value.trim().isEmpty)) {
+                                  if (_replenish == 'Other' &&
+                                      (value == null || value.trim().isEmpty)) {
                                     return "Please enter a custom frequency.";
                                   }
                                   return null;
@@ -423,11 +434,11 @@ class _InputScreenState extends State<InputScreen> {
                               ),
                             ],
                             const SizedBox(height: 16),
-
-                            // Hours
+                
                             Text(
                               "Operational Hours",
-                              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
                                 color: AppTheme.primaryColor,
                               ),
                             ),
@@ -436,7 +447,8 @@ class _InputScreenState extends State<InputScreen> {
                               controller: _hoursController,
                               decoration: const InputDecoration(
                                 hintText: "e.g., 8",
-                                prefixIcon: Icon(Icons.timer, color: AppTheme.primaryColor),
+                                prefixIcon: Icon(Icons.timer,
+                                    color: AppTheme.primaryColor),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -449,7 +461,8 @@ class _InputScreenState extends State<InputScreen> {
                                 if (value == null || value.trim().isEmpty) {
                                   return "Please enter operational hours.";
                                 }
-                                if (double.tryParse(value) == null || double.parse(value) <= 0) {
+                                if (double.tryParse(value) == null ||
+                                    double.parse(value) <= 0) {
                                   return "Please enter a valid positive number.";
                                 }
                                 return null;
@@ -468,7 +481,8 @@ class _InputScreenState extends State<InputScreen> {
                       onTap: isLoading ? null : submitEmissionData,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 32),
                         decoration: BoxDecoration(
                           color: isLoading
                               ? AppTheme.primaryColor.withAlpha(128)
@@ -494,11 +508,14 @@ class _InputScreenState extends State<InputScreen> {
                             : Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.upload, color: Colors.white, size: 20),
+                                  const Icon(Icons.upload,
+                                      color: Colors.white, size: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     "Submit Data",
-                                    style: AppTheme.lightTheme.textTheme.bodyLarge?.copyWith(
+                                    style: AppTheme
+                                        .lightTheme.textTheme.bodyLarge
+                                        ?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -515,7 +532,8 @@ class _InputScreenState extends State<InputScreen> {
                     Center(
                       child: Text(
                         successMessage!,
-                        style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
+                        style:
+                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
                           color: Colors.green,
                         ),
                       ),
@@ -524,14 +542,13 @@ class _InputScreenState extends State<InputScreen> {
                     Center(
                       child: Text(
                         errorMessage!,
-                        style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
+                        style:
+                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
                           color: AppTheme.errorColor,
                         ),
                       ),
                     ),
                   const SizedBox(height: 40),
-
-                  // Footer
                   Center(
                     child: Text(
                       "Powered by Ecotrack",
