@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncfusion_flutter_gauges/gauges.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../config/theme.dart';
 
 // Classes for emission calculation and status
@@ -12,20 +13,58 @@ class EmissionCalculator {
   static const double poultryMethaneFactor = 0.02;
   static const double poultryN2OFactor = 0.01;
 
-  double calculateRestaurant(double lpgKg, [double kWh = 0.0]) =>
-      lpgKg * lpgFactor + kWh * electricityFactor;
-  double calculateKitchen(double lpgKg, double charcoalKg) =>
-      lpgKg * lpgFactor + charcoalKg * charcoalFactor;
-  double calculateLabs(double kWh, double lpgKg) =>
-      kWh * electricityFactor + lpgKg * lpgFactor;
-  double calculatePoultry(double birdCount, double kWh) {
-    double manureKg = birdCount * 0.5;
-    return (manureKg * poultryMethaneFactor * 25) +
-        (manureKg * poultryN2OFactor * 298) +
-        kWh * electricityFactor;
-  }
+  double calculateEmission(Map<String, dynamic> emission) {
+    final String primarySource = emission['primary_source'] ?? 'Other';
+    final double primaryAmount = (emission['primary_amount'] ?? 0.0).toDouble();
+    final String? secondarySource = emission['secondary_source'];
+    final double secondaryAmount =
+        (emission['secondary_amount'] ?? 0.0).toDouble();
+    final double hours = (emission['hours'] ?? 0.0).toDouble();
 
-  double calculateTransport(double dieselLiters) => dieselLiters * dieselFactor;
+    double primaryCo2e = 0.0;
+    double secondaryCo2e = 0.0;
+
+    // Calculate CO2e for primary source
+    switch (primarySource) {
+      case 'LPG':
+        primaryCo2e = primaryAmount * lpgFactor;
+        break;
+      case 'Electricity':
+        primaryCo2e = primaryAmount * electricityFactor;
+        break;
+      case 'Charcoal':
+        primaryCo2e = primaryAmount * charcoalFactor;
+        break;
+      case 'Diesel':
+        primaryCo2e = primaryAmount * dieselFactor;
+        break;
+      default:
+        primaryCo2e = 0.0; // Default for 'Other'
+    }
+
+    // Calculate CO2e for secondary source (if present)
+    if (secondarySource != null) {
+      switch (secondarySource) {
+        case 'LPG':
+          secondaryCo2e = secondaryAmount * lpgFactor;
+          break;
+        case 'Electricity':
+          secondaryCo2e = secondaryAmount * electricityFactor;
+          break;
+        case 'Charcoal':
+          secondaryCo2e = secondaryAmount * charcoalFactor;
+          break;
+        case 'Diesel':
+          secondaryCo2e = secondaryAmount * dieselFactor;
+          break;
+        default:
+          secondaryCo2e = 0.0;
+      }
+    }
+
+    // Total CO2e = (primary + secondary) * hours
+    return (primaryCo2e + secondaryCo2e) * hours;
+  }
 }
 
 class EmissionStatus {
@@ -48,7 +87,7 @@ class RecommendationEngine {
     if (status == 'Good') return 'Great job! Maintain efficient energy use.';
     final highLpgSites = emissions
         .where((e) =>
-            e['primary_energy'] == 'LPG' && (e['primary_amount'] ?? 0) > 20)
+            e['primary_source'] == 'LPG' && (e['primary_amount'] ?? 0) > 20)
         .toList();
     if (highLpgSites.isNotEmpty) {
       return 'High LPG use in ${highLpgSites.map((e) => e['site']).join(', ')}. '
@@ -88,8 +127,17 @@ class _DashboardContentState extends State<DashboardContent> {
           .select()
           .order('created_at', ascending: false);
 
+      final calculator = EmissionCalculator();
+      final List<Map<String, dynamic>> updatedEmissions = response.map((item) {
+        final co2e = calculator.calculateEmission(item);
+        return {
+          ...item,
+          'co2e_monthly': co2e,
+        };
+      }).toList();
+
       setState(() {
-        emissions = response;
+        emissions = updatedEmissions;
         totalCo2e = emissions.fold(
             0.0, (sum, item) => sum + (item['co2e_monthly'] ?? 0.0));
         final emissionStatus = EmissionStatus();
@@ -111,13 +159,41 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
+  // Helper method to determine bar color based on emission status
+  Color getEmissionColor(double co2e) {
+    if (co2e < 700) return Colors.green; // Good
+    if (co2e <= 1000) return Colors.orange; // Moderate
+    if (co2e <= 1500) return Colors.red; // Bad
+    return Colors.red[900]!; // Critical (Dark Red)
+  }
+
+  // Helper method to determine the unit based on the primary source
+  String getUnitForSource(String? source) {
+    switch (source) {
+      case 'LPG':
+        return 'kg';
+      case 'Electricity':
+        return 'kWh';
+      case 'Charcoal':
+        return 'kg';
+      case 'Diesel':
+        return 'kg';
+      default:
+        return 'units'; // Default for 'Other' or null
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Get screen width for responsive adjustments
+    final double screenWidth = MediaQuery.of(context).size.width;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Total Monthly Emissions
           Card(
             elevation: 4,
             child: Padding(
@@ -148,6 +224,8 @@ class _DashboardContentState extends State<DashboardContent> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Emission vs. Limit (Radial Gauge)
           Card(
             elevation: 4,
             child: Padding(
@@ -194,134 +272,196 @@ class _DashboardContentState extends State<DashboardContent> {
           ),
           const SizedBox(height: 16),
 
+          // Emissions by Site (Vertical Bar Chart)
           Text(
             "Emissions by Site (kg CO2e):",
             style: AppTheme.lightTheme.textTheme.titleLarge,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           const SizedBox(height: 8),
           emissions.isEmpty
               ? const Center(child: Text("No data available."))
-              : Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: SizedBox(
-                      height: 200,
-                      child: BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.spaceAround,
-                          maxY: emissions
-                                  .map((e) => (e['co2e_monthly'] ?? 0.0))
-                                  .reduce((a, b) => a > b ? a : b) *
-                              1.2,
-                          barTouchData: BarTouchData(enabled: true),
-                          titlesData: FlTitlesData(
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) {
-                                  final site = emissions[value.toInt()]['site'];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      site.length > 10
-                                          ? site.substring(0, 10) + '...'
-                                          : site,
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
-                                getTitlesWidget: (value, meta) => Text(
-                                  value.toInt().toString(),
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                              ),
-                            ),
-                            topTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            rightTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
+              : Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: SizedBox(
+                        height: 300, // Fixed height for vertical chart
+                        child: SfCartesianChart(
+                          primaryXAxis: CategoryAxis(
+                            labelStyle: const TextStyle(fontSize: 12),
+                            labelRotation:
+                                45, // Rotate labels for better readability
+                            majorGridLines: const MajorGridLines(width: 0),
+                            maximumLabelWidth:
+                                screenWidth / (emissions.length + 1),
                           ),
-                          borderData: FlBorderData(show: false),
-                          barGroups: emissions.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final data = entry.value;
-                            return BarChartGroupData(
-                              x: index,
-                              barRods: [
-                                BarChartRodData(
-                                  toY: data['co2e_monthly']?.toDouble() ?? 0.0,
-                                  color: Colors.blue,
-                                  width: 16,
-                                  borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(4)),
-                                ),
-                              ],
-                            );
-                          }).toList(),
+                          primaryYAxis: NumericAxis(
+                            labelStyle: const TextStyle(fontSize: 12),
+                            title: AxisTitle(
+                              text: 'Emissions (kg CO2e)',
+                              textStyle: const TextStyle(fontSize: 14),
+                            ),
+                            majorGridLines: const MajorGridLines(width: 0.5),
+                          ),
+                          tooltipBehavior: TooltipBehavior(
+                            enable: true,
+                            header: 'Emissions',
+                            format: 'point.x: point.y kg CO2e',
+                          ),
+                          series: <CartesianSeries>[
+                            ColumnSeries<Map<String, dynamic>, String>(
+                              dataSource: emissions
+                                ..sort((a, b) => (b['co2e_monthly'] as double)
+                                    .compareTo(a['co2e_monthly'] as double)),
+                              xValueMapper: (Map<String, dynamic> data, _) =>
+                                  data['site'],
+                              yValueMapper: (Map<String, dynamic> data, _) =>
+                                  data['co2e_monthly'] as double,
+                              pointColorMapper:
+                                  (Map<String, dynamic> data, _) =>
+                                      getEmissionColor(
+                                          data['co2e_monthly'] as double),
+                              dataLabelSettings: const DataLabelSettings(
+                                isVisible: true,
+                                labelAlignment: ChartDataLabelAlignment.top,
+                                textStyle: TextStyle(fontSize: 12),
+                              ),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(4)),
+                              width: 0.6, // Adjust bar width for better spacing
+                              spacing: 0.2, // Add spacing between bars
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    // Legend for Emission Status (using Wrap to prevent overflow)
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8, // Horizontal spacing between items
+                      runSpacing: 4, // Vertical spacing between lines
+                      children: [
+                        _buildLegendItem(Colors.green, 'Good (<700 kg)'),
+                        _buildLegendItem(
+                            Colors.orange, 'Moderate (700-1000 kg)'),
+                        _buildLegendItem(Colors.red, 'Bad (1000-1500 kg)'),
+                        _buildLegendItem(
+                            Colors.red[900]!, 'Critical (>1500 kg)'),
+                      ],
+                    ),
+                  ],
                 ),
           const SizedBox(height: 16),
 
+          // Site Details
           Text(
             "Site Details:",
             style: AppTheme.lightTheme.textTheme.titleLarge,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           const SizedBox(height: 8),
           emissions.isEmpty
               ? const Center(child: Text("No site data available."))
-              : Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      children: emissions
-                          .map((e) => ListTile(
-                                title: Text(
-                                  '${e['site']}: ${e['co2e_monthly']?.toStringAsFixed(1)} kg CO2e',
-                                  style:
-                                      AppTheme.lightTheme.textTheme.bodyMedium,
-                                ),
-                                subtitle: Text(
-                                  'Primary: ${e['primary_energy']} ${e['primary_amount']} ${e['primary_unit']}',
-                                  style:
-                                      AppTheme.lightTheme.textTheme.bodySmall,
-                                ),
-                              ))
-                          .toList(),
-                    ),
+              : Container(
+                  padding: const EdgeInsets.all(8.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(color: Colors.grey[300]!, width: 1),
+                  ),
+                  child: Column(
+                    children: emissions
+                        .map((e) => ListTile(
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${e['site']}: ${e['co2e_monthly'].toStringAsFixed(1)} kg CO2e',
+                                      style: AppTheme
+                                          .lightTheme.textTheme.bodyMedium,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Primary: ${e['primary_source'] ?? 'N/A'} ${e['primary_amount'] ?? 0.0} ${getUnitForSource(e['primary_source'])}',
+                                      style: AppTheme
+                                          .lightTheme.textTheme.bodySmall,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
           const SizedBox(height: 16),
 
+          // Quick Recommendation
           Text(
             "Quick Recommendation:",
             style: AppTheme.lightTheme.textTheme.titleLarge,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           const SizedBox(height: 8),
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                briefRecommendation,
-                style: AppTheme.lightTheme.textTheme.bodyMedium,
-              ),
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8.0),
+              border: Border.all(color: Colors.grey[300]!, width: 1),
+            ),
+            child: Text(
+              briefRecommendation,
+              style: AppTheme.lightTheme.textTheme.bodyMedium,
+              softWrap: true,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // Helper method to build legend items
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min, // Minimize the Row's size to fit content
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
+            fontSize: 12,
+          ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+      ],
     );
   }
 }

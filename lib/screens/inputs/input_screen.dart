@@ -6,17 +6,18 @@ import 'package:logging/logging.dart';
 final _log = Logger('InputScreen');
 
 class InputScreen extends StatefulWidget {
-  const InputScreen({super.key});
+const InputScreen({super.key});
 
-  @override
+@override
   State<InputScreen> createState() => _InputScreenState();
 }
 
 class _InputScreenState extends State<InputScreen> {
-  final supabase = Supabase.instance.client;
+final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  final _siteController = TextEditingController();
+// Form field controllers
+final _siteController = TextEditingController();
   String? _primarySource;
   final _primaryAmountController = TextEditingController();
   String? _secondarySource;
@@ -25,47 +26,114 @@ class _InputScreenState extends State<InputScreen> {
   final _customReplenishController = TextEditingController();
   final _hoursController = TextEditingController();
 
-  bool isLoading = false;
+// State variables
+bool isLoading = false;
   String? errorMessage;
   String? successMessage;
   bool hasSubmitted = false;
+Map<String, dynamic>?
+      latestEmission; // Store the latest submitted emission data
 
-  final List<String> energySources = ['LPG', 'Charcoal', 'Electricity', 'Diesel', 'Other'];
-  final List<String> replenishOptions = ['Per Day', 'Daily', 'Weekly', 'Monthly', 'Other'];
+// Options for dropdowns
+  final List<String> energySources = [
+    'LPG',
+    'Charcoal',
+    'Electricity',
+    'Diesel',
+    'Other'
+  ];
+  final List<String> replenishOptions = [
+    'Per Day',
+    'Daily',
+    'Weekly',
+    'Monthly',
+  ];
 
-  List<String> getAvailableSecondarySources() {
+// Filter secondary source options based on primary source
+List<String> getAvailableSecondarySources() {
     if (_primarySource == null) {
       return energySources;
     }
     return energySources.where((source) => source != _primarySource).toList();
   }
 
-  @override
+@override
+  void initState() {
+    super.initState();
+// Subscribe to real-time changes in the emissions table
+    supabase
+        .channel('public:emissions')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'emissions',
+          callback: (payload) {
+            _fetchLatestEmission();
+          },
+        )
+        .subscribe();
+
+// Fetch initial latest emission data
+    _fetchLatestEmission();
+  }
+
+// Fetch the latest emission data from the database
+  Future<void> _fetchLatestEmission() async {
+    try {
+      final response = await supabase
+          .from('emissions')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (response != null) {
+        setState(() {
+          latestEmission = response;
+        });
+      }
+    } catch (error) {
+      _log.severe('Error fetching latest emission:', error);
+    }
+  }
+
+// Calculate total emissions (example calculation)
+  double calculateTotalEmissions(Map<String, dynamic> emission) {
+    final double primaryAmount = (emission['primary_amount'] ?? 0).toDouble();
+    final double secondaryAmount =
+        (emission['secondary_amount'] ?? 0).toDouble();
+    final double hours = (emission['hours'] ?? 0).toDouble();
+    const double emissionFactor = 0.5; // Example: 0.5 kg CO2 per unit
+    return (primaryAmount + secondaryAmount) * hours * emissionFactor;
+  }
+
+@override
   void dispose() {
     _siteController.dispose();
     _primaryAmountController.dispose();
     _secondaryAmountController.dispose();
     _customReplenishController.dispose();
     _hoursController.dispose();
-    super.dispose();
+supabase.channel('public:emissions').unsubscribe();
+super.dispose();
   }
 
-  Future<void> submitEmissionData() async {
+Future<void> submitEmissionData() async {
     setState(() {
       hasSubmitted = true;
     });
 
-    if (!_formKey.currentState!.validate()) {
+if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() {
+setState(() {
       isLoading = true;
       errorMessage = null;
       successMessage = null;
     });
 
-    try {
+try {
       final user = supabase.auth.currentUser;
       if (user == null) {
         setState(() {
@@ -76,29 +144,31 @@ class _InputScreenState extends State<InputScreen> {
         return;
       }
 
-      final String replenishValue = _replenish == 'Other'
+// Determine the replenish value to submit
+final String replenishValue = _replenish == 'Other'
           ? _customReplenishController.text.trim()
           : _replenish!;
 
-      // Prepare data for submission
+// Prepare data for submission
       final emissionData = {
         'user_id': user.id,
         'site': _siteController.text.trim(),
         'primary_source': _primarySource,
-        'primary_amount': double.parse(_primaryAmountController.text.trim()),
+        'primary_amount':
+            double.parse(_primaryAmountController.text.trim()).toDouble(),
         'secondary_source': _secondarySource,
         'secondary_amount': _secondaryAmountController.text.isNotEmpty
-            ? double.parse(_secondaryAmountController.text.trim())
+            ? double.parse(_secondaryAmountController.text.trim()).toDouble()
             : null,
         'replenish': replenishValue,
-        'hours': double.parse(_hoursController.text.trim()),
+        'hours': double.parse(_hoursController.text.trim()).toDouble(),
       };
 
-      // Submit to Supabase
+// Submit to Supabase
       final response =
           await supabase.from('emissions').insert(emissionData).select();
 
-      if (response.isNotEmpty) {
+if (response.isNotEmpty) {
         setState(() {
           successMessage = "Emission data submitted successfully!";
           isLoading = false;
@@ -136,7 +206,7 @@ class _InputScreenState extends State<InputScreen> {
     }
   }
 
-  // Function to clear error messages when the user starts interacting
+// Function to clear error messages when the user starts interacting
   void _clearErrorMessage() {
     if (errorMessage != null) {
       setState(() {
@@ -145,27 +215,19 @@ class _InputScreenState extends State<InputScreen> {
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
-    // Get available secondary sources
+// Get available secondary sources
     final availableSecondarySources = getAvailableSecondarySources();
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: CustomScrollView(
+return Scaffold(
+appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text("Log Emission Data"),
+        backgroundColor: AppTheme.primaryColor,
+),
+body: CustomScrollView(
         slivers: [
-          // Header
-          SliverAppBar(
-            automaticallyImplyLeading: false,
-            pinned: true,
-            backgroundColor: AppTheme.primaryColor,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                "Log Emission Data",
-                style: AppTheme.lightTheme.appBarTheme.titleTextStyle,
-              ),
-            ),
-          ),
           // Main Content
           SliverToBoxAdapter(
             child: Padding(
@@ -173,7 +235,7 @@ class _InputScreenState extends State<InputScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-    
+                  // Form Section
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -183,7 +245,7 @@ class _InputScreenState extends State<InputScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-            
+                            // Site
                             Text(
                               "Site",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -214,7 +276,7 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-              
+                            // Primary Source
                             Text(
                               "Primary Energy Source",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -258,7 +320,7 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-          
+                            // Primary Amount
                             Text(
                               "Primary Amount (kg or kWh)",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -294,7 +356,7 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                  
+                            // Secondary Source (Optional)
                             Text(
                               "Secondary Energy Source (Optional)",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -328,6 +390,7 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
+                            // Secondary Amount (Optional)
                             Text(
                               "Secondary Amount (kg or kWh, Optional)",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -362,7 +425,8 @@ class _InputScreenState extends State<InputScreen> {
                               },
                             ),
                             const SizedBox(height: 16),
-            
+
+                            // Replenish
                             Text(
                               "Replenish Frequency",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -434,7 +498,8 @@ class _InputScreenState extends State<InputScreen> {
                               ),
                             ],
                             const SizedBox(height: 16),
-                
+
+                            // Hours
                             Text(
                               "Operational Hours",
                               style: AppTheme.lightTheme.textTheme.titleLarge
@@ -548,7 +613,80 @@ class _InputScreenState extends State<InputScreen> {
                         ),
                       ),
                     ),
+                  const SizedBox(height: 20),
+
+                  // Latest Emission Data
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Latest Emission Data",
+                            style: AppTheme.lightTheme.textTheme.titleLarge
+                                ?.copyWith(
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (latestEmission == null)
+                            const Center(
+                              child: Text(
+                                "No emission data available.",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            )
+                          else ...[
+                            Text(
+                              "Site: ${latestEmission!['site']}",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Primary Source: ${latestEmission!['primary_source']}",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Primary Amount: ${latestEmission!['primary_amount']} kg/kWh",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            if (latestEmission!['secondary_source'] != null)
+                              Text(
+                                "Secondary Source: ${latestEmission!['secondary_source']}",
+                                style: AppTheme.lightTheme.textTheme.bodyMedium,
+                              ),
+                            if (latestEmission!['secondary_source'] != null)
+                              const SizedBox(height: 8),
+                            if (latestEmission!['secondary_amount'] != null)
+                              Text(
+                                "Secondary Amount: ${latestEmission!['secondary_amount']} kg/kWh",
+                                style: AppTheme.lightTheme.textTheme.bodyMedium,
+                              ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Hours: ${latestEmission!['hours']}",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Total Emissions: ${calculateTotalEmissions(latestEmission!).toStringAsFixed(2)} kg CO2",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium
+                                  ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 40),
+
+                  // Footer
                   Center(
                     child: Text(
                       "Powered by Ecotrack",

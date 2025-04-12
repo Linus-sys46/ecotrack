@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/theme.dart';
-import 'package:logging/logging.dart';
-
-final _log = Logger('ProfileScreen');
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,365 +11,262 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final supabase = Supabase.instance.client;
-  Map<String, dynamic>? userData;
+  Map<String, dynamic>? userProfile;
   bool isLoading = true;
-  String? errorMessage;
-
-  String? footprintScore;
-  int? actionsTracked;
 
   @override
   void initState() {
     super.initState();
-    _log.info('Profile screen initialized');
-    fetchUserProfileAndCarbonData();
+    _fetchUserProfile();
   }
 
-  Future<void> fetchUserProfileAndCarbonData() async {
+  Future<void> _fetchUserProfile() async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
-        setState(() {
-          errorMessage = "No user is logged in.";
-          isLoading = false;
-        });
-        _log.warning('No user is logged in.');
+        if (mounted) {
+          setState(() {
+            userProfile = null;
+            isLoading = false;
+          });
+        }
         return;
       }
 
-      final profileResponse = await supabase
+      final response = await supabase
           .from('profiles')
-          .select('full_name, email, created_at')
+          .select('full_name, email')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-      setState(() {
-        userData = profileResponse;
-      });
-      _log.info(
-          'User profile fetched successfully: ${profileResponse['full_name']}');
-
-      await fetchCarbonFootprintData(user.id);
-
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          userProfile = response;
+          isLoading = false;
+        });
+      }
     } catch (error) {
-      setState(() {
-        errorMessage = "Failed to fetch profile or carbon data: $error";
-        isLoading = false;
-      });
-      _log.severe('Failed to fetch profile or carbon data:', error);
+      if (mounted) {
+        setState(() {
+          userProfile = null;
+          isLoading = false;
+        });
+      }
     }
-  }
-
-  Future<void> fetchCarbonFootprintData(String userId) async {
-    try {
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() {
-        footprintScore = "Improving";
-        actionsTracked = 2;
-      });
-      _log.info('Carbon footprint data fetched successfully.');
-    } catch (error) {
-      _log.severe('Error fetching carbon data:', error);
-    }
-  }
-
-  String formatMemberSince(String? timestamp) {
-    if (timestamp == null) return "";
-    try {
-      DateTime createdAt = DateTime.parse(timestamp);
-      return DateFormat("MMMM yyyy").format(createdAt);
-    } catch (e) {
-      _log.warning('Error parsing timestamp for join date:', e);
-      return "";
-    }
-  }
-
-  String getInitials(String? fullName) {
-    if (fullName == null || fullName.isEmpty) {
-      return "U";
-    }
-    final names = fullName.split(" ");
-    final initials = names.map((name) => name.isNotEmpty ? name[0] : "").join();
-    return initials.toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text("Profile"),
+        backgroundColor: AppTheme.primaryColor,
+      ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryColor))
-          : errorMessage != null
-              ? Center(
-                  child: Text(errorMessage!,
-                      style: TextStyle(color: AppTheme.errorColor)))
-              : CustomScrollView(
-                  slivers: [
-                    // App Bar and Cover Image
-                    SliverAppBar(
-                      automaticallyImplyLeading: false,
-                      expandedHeight: 200,
-                      pinned: true,
-                      backgroundColor: AppTheme.primaryColor,
-                      flexibleSpace: FlexibleSpaceBar(
-                        background: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    AppTheme.primaryColor,
-                                    AppTheme.primaryColor.withAlpha(179),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              left: 20,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: AppTheme.cardBackground,
-                                    width: 4.0,
-                                  ),
-                                ),
-                                child: CircleAvatar(
-                                  radius: 50,
-                                  backgroundColor: AppTheme.primaryColor,
-                                  child: Text(
-                                    getInitials(userData?['full_name']),
-                                    style: const TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+          ? const Center(child: CircularProgressIndicator())
+          : userProfile == null
+              ? const Center(
+                  child: Text(
+                    "Unable to load profile information.",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Profile Header
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                    ),
-                    // Main Content
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20.0, vertical: 10.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-          
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8.0),
-                              child: Column(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 40,
+                                backgroundColor:
+                                    AppTheme.primaryColor.withAlpha(50),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    userData?['full_name'] ?? "Unknown User",
+                                    userProfile?['full_name'] ?? "User",
                                     style: AppTheme
-                                        .lightTheme.textTheme.displayLarge
+                                        .lightTheme.textTheme.titleLarge
                                         ?.copyWith(
-                                      fontSize: 24,
-                                      color: AppTheme.textPrimary,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    "Joined ${formatMemberSince(userData?['created_at'])}",
+                                    userProfile?['email'] ??
+                                        "No email provided",
                                     style: AppTheme
                                         .lightTheme.textTheme.bodyMedium
-                                        ?.copyWith(
-                                      color: AppTheme.textSecondary,
-                                    ),
+                                        ?.copyWith(color: Colors.grey[600]),
                                   ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
-                        
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Your Impact",
-                                      style: AppTheme
-                                          .lightTheme.textTheme.titleLarge
-                                          ?.copyWith(
-                                        color: AppTheme.primaryColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.bar_chart,
-                                            color: AppTheme.primaryColor,
-                                            size: 20),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            "Carbon Footprint Score: ${footprintScore ?? 'N/A'}",
-                                            style: AppTheme
-                                                .lightTheme.textTheme.bodyLarge,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.check_circle_outline,
-                                            color: AppTheme.accentColor,
-                                            size: 20),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            "Sustainable Actions Tracked: ${actionsTracked ?? 'N/A'}",
-                                            style: AppTheme
-                                                .lightTheme.textTheme.bodyLarge,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
+                      // Settings Section
+                      Text(
+                        "Settings",
+                        style: AppTheme.lightTheme.textTheme.titleLarge
+                            ?.copyWith(color: AppTheme.primaryColor),
+                      ),
+                      const SizedBox(height: 10),
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.lock,
+                                  color: AppTheme.primaryColor),
+                              title: const Text("Change Password"),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                // Handle change password action
+                              },
                             ),
-                            const SizedBox(height: 16),
-
-                           
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Account Information",
-                                      style: AppTheme
-                                          .lightTheme.textTheme.titleLarge
-                                          ?.copyWith(
-                                        color: AppTheme.primaryColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.email,
-                                            color: AppTheme.accentColor,
-                                            size: 20),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            userData?['email'] ?? "N/A",
-                                            style: AppTheme
-                                                .lightTheme.textTheme.bodyLarge,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.notifications,
+                                  color: AppTheme.primaryColor),
+                              title: const Text("Notification Preferences"),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                // Handle notification preferences action
+                              },
                             ),
-                            const SizedBox(height: 20),
-
-                            Center(
-                              child: GestureDetector(
-                                onTap: () async {
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: const Text("Confirm Logout"),
-                                        content: const Text(
-                                            "Are you sure you want to logout?"),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            child: const Text("Cancel"),
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                            },
-                                          ),
-                                          TextButton(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor:
-                                                  AppTheme.errorColor,
-                                            ),
-                                            child: const Text("Logout"),
-                                            onPressed: () async {
-                                              Navigator.of(context).pop();
-                                              await supabase.auth.signOut();
-                                              if (context.mounted) {
-                                                Navigator.pushReplacementNamed(
-                                                    context, '/login');
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12, horizontal: 24),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.errorColor.withAlpha(26),
-                                    border:
-                                        Border.all(color: AppTheme.errorColor),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.logout,
-                                          color: AppTheme.errorColor, size: 20),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        "Logout",
-                                        style: AppTheme
-                                            .lightTheme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                          color: AppTheme.errorColor,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-                      
-                            Center(
-                              child: Text(
-                                "Powered by Ecotrack",
-                                style: AppTheme.lightTheme.textTheme.bodySmall
-                                    ?.copyWith(
-                                  color: AppTheme.textSecondary,
-                                ),
-                              ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.language,
+                                  color: AppTheme.primaryColor),
+                              title: const Text("Language"),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                // Handle language selection action
+                              },
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+
+                      // Support Section
+                      Text(
+                        "Support",
+                        style: AppTheme.lightTheme.textTheme.titleLarge
+                            ?.copyWith(color: AppTheme.primaryColor),
+                      ),
+                      const SizedBox(height: 10),
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.help_outline,
+                                  color: AppTheme.primaryColor),
+                              title: const Text("Help Center"),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                // Handle help center action
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.feedback_outlined,
+                                  color: AppTheme.primaryColor),
+                              title: const Text("Send Feedback"),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                // Handle send feedback action
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Logout Button
+                      Center(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final shouldLogout = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text("Confirm Log Out"),
+                                content: const Text(
+                                    "Are you sure you want to log out?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Cancel"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppTheme.errorColor,
+                                      // backgroundColor: AppTheme.errorColor,
+                                    ),
+                                    child: const Text("Log out"),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (shouldLogout == true) {
+                              await supabase.auth.signOut();
+                              if (mounted) {
+                                Navigator.of(context)
+                                    .pushReplacementNamed('/login');
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.logout, color: Colors.white),
+                          label: const Text("Log Out"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.errorColor,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 24),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
     );
   }
