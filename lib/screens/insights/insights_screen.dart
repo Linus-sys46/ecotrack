@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/theme.dart';
 
-// EmissionCalculator class (copied from dashboard_content.dart for consistency)
+// EmissionCalculator class (unchanged)
 class EmissionCalculator {
   static const double lpgFactor = 3.0; // kg CO2e/kg LPG
   static const double electricityFactor = 0.4; // kg CO2e/kWh
@@ -28,22 +28,22 @@ class EmissionCalculator {
 }
 
 class InsightsScreen extends StatelessWidget {
-final List<Map<String, dynamic>> emissions;
+  final List<Map<String, dynamic>> emissions;
   final String status;
 
-const InsightsScreen({
+  const InsightsScreen({
     super.key,
     required this.emissions,
     required this.status,
   });
 
-// Calculate total emissions
+  // Calculate total emissions
   double getTotalEmissions() {
     return emissions.fold(
         0.0, (sum, item) => sum + (item['co2e_monthly']?.toDouble() ?? 0.0));
   }
 
-// Group emissions by month for trend analysis
+  // Group emissions by month for trend analysis
   Map<String, double> getMonthlyEmissions() {
     Map<String, double> monthlyData = {};
     for (var entry in emissions) {
@@ -64,12 +64,12 @@ const InsightsScreen({
     return monthlyData;
   }
 
-// Group emissions by both primary and secondary sources
+  // Group emissions by both primary and secondary sources
   Map<String, double> getEmissionsBySource() {
     Map<String, double> sourceData = {};
-final calculator = EmissionCalculator();
+    final calculator = EmissionCalculator();
 
-for (var entry in emissions) {
+    for (var entry in emissions) {
       final String primarySource = entry['primary_source'] ?? 'Unknown';
       final double primaryAmount = (entry['primary_amount'] ?? 0.0).toDouble();
       final String? secondarySource = entry['secondary_source'];
@@ -111,22 +111,26 @@ for (var entry in emissions) {
     return sourceData;
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     final totalEmissions = getTotalEmissions();
     final monthlyEmissions = getMonthlyEmissions();
     final emissionsBySource = getEmissionsBySource();
 
-// Sort monthly emissions for the line chart
+    // Sort monthly emissions for the line chart
     final sortedMonths = monthlyEmissions.keys.toList()..sort();
-    final monthlyValues =
-        sortedMonths.map((month) => monthlyEmissions[month]!).toList();
+    final monthlyValues = sortedMonths.isNotEmpty
+        ? sortedMonths
+            .map((month) => monthlyEmissions[month]!.toDouble())
+            .toList()
+        : <double>[];
 
-// Calculate the interval for x-axis labels to prevent overlap
-    final int labelInterval =
-        (sortedMonths.length / 5).ceil().clamp(1, sortedMonths.length);
+    // Calculate the interval for x-axis labels to prevent overlap
+    final int labelInterval = sortedMonths.isNotEmpty
+        ? (sortedMonths.length / 5).ceil().clamp(1, sortedMonths.length)
+        : 1;
 
-return Scaffold(
+    return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text("Insights"),
@@ -225,7 +229,8 @@ return Scaffold(
                         const SizedBox(height: 12),
                         monthlyEmissions.isEmpty
                             ? const Center(
-                                child: Text("No trend data available."))
+                                child: Text("No trend data available."),
+                              )
                             : SizedBox(
                                 height: 200,
                                 child: LineChart(
@@ -242,17 +247,17 @@ return Scaffold(
                                           reservedSize: 40,
                                           getTitlesWidget: (value, meta) =>
                                               Text(
-                                            value.toStringAsFixed(1),
+                                            value.toStringAsFixed(0),
                                             style: AppTheme
                                                 .lightTheme.textTheme.bodySmall,
                                           ),
-                                          interval: (monthlyValues.isNotEmpty
-                                                  ? monthlyValues.reduce(
+                                          interval: monthlyValues.isNotEmpty
+                                              ? (monthlyValues.reduce(
                                                           (a, b) =>
                                                               a > b ? a : b) *
-                                                      0.25
-                                                  : 200)
-                                              .toDouble(),
+                                                      0.25)
+                                                  .toDouble()
+                                              : 200,
                                         ),
                                       ),
                                       bottomTitles: AxisTitles(
@@ -260,7 +265,7 @@ return Scaffold(
                                           showTitles: true,
                                           interval: labelInterval.toDouble(),
                                           getTitlesWidget: (value, meta) {
-                                            int index = value.toInt();
+                                            final index = value.toInt();
                                             if (index < 0 ||
                                                 index >= sortedMonths.length) {
                                               return const SizedBox.shrink();
@@ -292,10 +297,11 @@ return Scaffold(
                                         spots: monthlyValues
                                             .asMap()
                                             .entries
-                                            .map((e) {
-                                          return FlSpot(
-                                              e.key.toDouble(), e.value);
-                                        }).toList(),
+                                            .map((entry) => FlSpot(
+                                                  entry.key.toDouble(),
+                                                  entry.value,
+                                                ))
+                                            .toList(),
                                         isCurved: true,
                                         color: AppTheme.primaryColor,
                                         barWidth: 3,
@@ -354,7 +360,7 @@ return Scaffold(
                                     PieChartData(
                                       sections: emissionsBySource.entries
                                           .map((entry) {
-                                        int index = emissionsBySource.keys
+                                        final index = emissionsBySource.keys
                                             .toList()
                                             .indexOf(entry.key);
                                         return PieChartSectionData(
@@ -386,7 +392,7 @@ return Scaffold(
                           spacing: 8,
                           runSpacing: 8,
                           children: emissionsBySource.keys.map((source) {
-                            int index =
+                            final index =
                                 emissionsBySource.keys.toList().indexOf(source);
                             return Row(
                               mainAxisSize: MainAxisSize.min,
@@ -414,7 +420,7 @@ return Scaffold(
                   ),
                   const SizedBox(height: 16),
 
-                  // Comparison with Average (Static for now)
+                  // Comparison with Average
                   Container(
                     padding: const EdgeInsets.all(16.0),
                     decoration: BoxDecoration(
@@ -458,7 +464,7 @@ return Scaffold(
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                "Average User: 1200 kg CO2e",
+                                "Average User: 5000 kg CO2e",
                                 style: AppTheme.lightTheme.textTheme.bodyLarge,
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
@@ -468,12 +474,12 @@ return Scaffold(
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          totalEmissions > 1200
-                              ? "Your emissions are ${(totalEmissions - 1200).toStringAsFixed(1)} kg above average."
-                              : "Your emissions are ${(1200 - totalEmissions).toStringAsFixed(1)} kg below average.",
+                          totalEmissions > 5000
+                              ? "Your emissions are ${(totalEmissions - 5000).toStringAsFixed(1)} kg above average."
+                              : "Your emissions are ${(5000 - totalEmissions).toStringAsFixed(1)} kg below average.",
                           style: AppTheme.lightTheme.textTheme.bodyMedium
                               ?.copyWith(
-                            color: totalEmissions > 1200
+                            color: totalEmissions > 5000
                                 ? AppTheme.errorColor
                                 : Colors.green,
                           ),

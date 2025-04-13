@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:syncfusion_flutter_gauges/gauges.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_gauges/gauges.dart' as gauges;
+import 'package:fl_chart/fl_chart.dart';
 import '../../config/theme.dart';
 
 // Classes for emission calculation and status
@@ -24,7 +24,6 @@ class EmissionCalculator {
     double primaryCo2e = 0.0;
     double secondaryCo2e = 0.0;
 
-    // Calculate CO2e for primary source
     switch (primarySource) {
       case 'LPG':
         primaryCo2e = primaryAmount * lpgFactor;
@@ -39,10 +38,9 @@ class EmissionCalculator {
         primaryCo2e = primaryAmount * dieselFactor;
         break;
       default:
-        primaryCo2e = 0.0; // Default for 'Other'
+        primaryCo2e = 0.0;
     }
 
-    // Calculate CO2e for secondary source (if present)
     if (secondarySource != null) {
       switch (secondarySource) {
         case 'LPG':
@@ -62,18 +60,17 @@ class EmissionCalculator {
       }
     }
 
-    // Total CO2e = (primary + secondary) * hours
     return (primaryCo2e + secondaryCo2e) * hours;
   }
 }
 
 class EmissionStatus {
-  static const double limit = 1000.0; // 1 ton CO2e/month
+  static const double limit = 5000.0; // Updated to 5 tons CO2e/month
 
   String classify(double totalCo2e) {
-    if (totalCo2e < 700) return 'Good';
-    if (totalCo2e <= 1000) return 'Moderate';
-    if (totalCo2e <= 1500) return 'Bad';
+    if (totalCo2e < 3500) return 'Good'; // Adjusted thresholds
+    if (totalCo2e <= 5000) return 'Moderate';
+    if (totalCo2e <= 7500) return 'Bad';
     return 'Critical';
   }
 
@@ -84,7 +81,12 @@ class EmissionStatus {
 class RecommendationEngine {
   String getRecommendation(
       String status, List<Map<String, dynamic>> emissions) {
-    if (status == 'Good') return 'Great job! Maintain efficient energy use.';
+    if (emissions.isEmpty) {
+      return 'Welcome! Get started by logging your emission data.';
+    }
+    if (status == 'Good') {
+      return 'Great job! Maintain efficient energy use.';
+    }
     final highLpgSites = emissions
         .where((e) =>
             e['primary_source'] == 'LPG' && (e['primary_amount'] ?? 0) > 20)
@@ -106,18 +108,27 @@ class DashboardContent extends StatefulWidget {
   State<DashboardContent> createState() => _DashboardContentState();
 }
 
-class _DashboardContentState extends State<DashboardContent> {
+class _DashboardContentState extends State<DashboardContent>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> emissions = [];
   double totalCo2e = 0.0;
   String status = '';
   double percentOverLimit = 0.0;
   String briefRecommendation = '';
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     fetchDashboardData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchDashboardData() async {
@@ -159,15 +170,13 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
-  // Helper method to determine bar color based on emission status
   Color getEmissionColor(double co2e) {
-    if (co2e < 700) return Colors.green; // Good
-    if (co2e <= 1000) return Colors.orange; // Moderate
-    if (co2e <= 1500) return Colors.red; // Bad
-    return Colors.red[900]!; // Critical (Dark Red)
+    if (co2e < 3500) return Colors.green;
+    if (co2e <= 5000) return Colors.orange;
+    if (co2e <= 7500) return Colors.red;
+    return Colors.red[900]!;
   }
 
-  // Helper method to determine the unit based on the primary source
   String getUnitForSource(String? source) {
     switch (source) {
       case 'LPG':
@@ -179,13 +188,12 @@ class _DashboardContentState extends State<DashboardContent> {
       case 'Diesel':
         return 'kg';
       default:
-        return 'units'; // Default for 'Other' or null
+        return 'units';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get screen width for responsive adjustments
     final double screenWidth = MediaQuery.of(context).size.width;
 
     return SingleChildScrollView(
@@ -194,244 +202,432 @@ class _DashboardContentState extends State<DashboardContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Total Monthly Emissions
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    "Total Monthly Emissions: ${totalCo2e.toStringAsFixed(1)} kg CO2e",
-                    style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withAlpha(25),
+                  spreadRadius: 2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  "Total Monthly Emissions: ${totalCo2e.toStringAsFixed(1)} kg CO2e",
+                  style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Status: $status",
-                    style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                      fontSize: 16,
-                      color: status == 'Good'
-                          ? Colors.green
-                          : status == 'Moderate'
-                              ? Colors.orange
-                              : Colors.red,
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Status: $status",
+                  style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 16,
+                    color: status == 'Good'
+                        ? Colors.green
+                        : status == 'Moderate'
+                            ? Colors.orange
+                            : Colors.red,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           // Emission vs. Limit (Radial Gauge)
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    "Emission vs. Limit (1 ton)",
-                    style: AppTheme.lightTheme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        height: 100,
-                        width: 100,
-                        child: CircularProgressIndicator(
-                          value: totalCo2e / 1000,
-                          strokeWidth: 10,
-                          backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              totalCo2e > 1000 ? Colors.red : Colors.green),
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withAlpha(25),
+                  spreadRadius: 2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  "Emission vs. Limit (5 tons)",
+                  style: AppTheme.lightTheme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 150,
+                  width: 150,
+                  child: gauges.SfRadialGauge(
+                    axes: <gauges.RadialAxis>[
+                      gauges.RadialAxis(
+                        minimum: 0,
+                        maximum: 7500,
+                        startAngle: 270,
+                        endAngle: 270,
+                        showLabels: false,
+                        showTicks: false,
+                        radiusFactor: 0.8,
+                        axisLineStyle: gauges.AxisLineStyle(
+                          thickness: 0.1,
+                          thicknessUnit: gauges.GaugeSizeUnit.factor,
+                          color: Colors.grey[300],
                         ),
-                      ),
-                      Text(
-                        '${(totalCo2e / 1000 * 100).toStringAsFixed(1)}%',
-                        style:
-                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        pointers: <gauges.GaugePointer>[
+                          gauges.RangePointer(
+                            value: totalCo2e.clamp(0, 7500),
+                            width: 0.1,
+                            sizeUnit: gauges.GaugeSizeUnit.factor,
+                            gradient: SweepGradient(
+                              colors: totalCo2e > 5000
+                                  ? [Colors.redAccent, Colors.red]
+                                  : [Colors.greenAccent, Colors.green],
+                            ),
+                            enableAnimation: true,
+                            animationDuration: 1000,
+                            animationType: gauges.AnimationType.ease,
+                          ),
+                        ],
+                        annotations: <gauges.GaugeAnnotation>[
+                          gauges.GaugeAnnotation(
+                            widget: Text(
+                              '${(totalCo2e / 5000 * 100).toStringAsFixed(1)}%',
+                              style: AppTheme.lightTheme.textTheme.bodyMedium
+                                  ?.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            angle: 90,
+                            positionFactor: 0.5,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Limit Exceedance: ${percentOverLimit.toStringAsFixed(1)}% over 1000 kg',
-                    style: AppTheme.lightTheme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Limit Exceedance: ${percentOverLimit.toStringAsFixed(1)}% over 5000 kg',
+                  style: AppTheme.lightTheme.textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-          // Emissions by Site (Vertical Bar Chart)
+          // Emissions by Site (Modern Bar Chart with fl_chart)
           Text(
             "Emissions by Site (kg CO2e):",
-            style: AppTheme.lightTheme.textTheme.titleLarge,
+            style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
           const SizedBox(height: 8),
           emissions.isEmpty
-              ? const Center(child: Text("No data available."))
+              ? Container(
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withAlpha(25),
+                        spreadRadius: 2,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Text(
+                        "No data available. Start logging your emissions."),
+                  ),
+                )
               : Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(16.0),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8.0),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white,
+                            Colors.grey[50]!,
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(12.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withAlpha(25),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: SizedBox(
-                        height: 300, // Fixed height for vertical chart
-                        child: SfCartesianChart(
-                          primaryXAxis: CategoryAxis(
-                            labelStyle: const TextStyle(fontSize: 12),
-                            labelRotation:
-                                45, // Rotate labels for better readability
-                            majorGridLines: const MajorGridLines(width: 0),
-                            maximumLabelWidth:
-                                screenWidth / (emissions.length + 1),
-                          ),
-                          primaryYAxis: NumericAxis(
-                            labelStyle: const TextStyle(fontSize: 12),
-                            title: AxisTitle(
-                              text: 'Emissions (kg CO2e)',
-                              textStyle: const TextStyle(fontSize: 14),
-                            ),
-                            majorGridLines: const MajorGridLines(width: 0.5),
-                          ),
-                          tooltipBehavior: TooltipBehavior(
-                            enable: true,
-                            header: 'Emissions',
-                            format: 'point.x: point.y kg CO2e',
-                          ),
-                          series: <CartesianSeries>[
-                            ColumnSeries<Map<String, dynamic>, String>(
-                              dataSource: emissions
-                                ..sort((a, b) => (b['co2e_monthly'] as double)
-                                    .compareTo(a['co2e_monthly'] as double)),
-                              xValueMapper: (Map<String, dynamic> data, _) =>
-                                  data['site'],
-                              yValueMapper: (Map<String, dynamic> data, _) =>
-                                  data['co2e_monthly'] as double,
-                              pointColorMapper:
-                                  (Map<String, dynamic> data, _) =>
-                                      getEmissionColor(
-                                          data['co2e_monthly'] as double),
-                              dataLabelSettings: const DataLabelSettings(
-                                isVisible: true,
-                                labelAlignment: ChartDataLabelAlignment.top,
-                                textStyle: TextStyle(fontSize: 12),
+                        height: 300,
+                        child: BarChart(
+                          BarChartData(
+                            alignment: BarChartAlignment.spaceAround,
+                            maxY: emissions.isNotEmpty
+                                ? (emissions
+                                        .map((e) => e['co2e_monthly'] as double)
+                                        .reduce((a, b) => a > b ? a : b) *
+                                    1.2)
+                                : 5000,
+                            barTouchData: BarTouchData(
+                              enabled: true,
+                              touchTooltipData: BarTouchTooltipData(
+                                tooltipRoundedRadius: 8,
+                                tooltipPadding: const EdgeInsets.all(8),
+                                tooltipMargin: 8,
+                                getTooltipColor: (_) =>
+                                    Colors.grey[800]!.withAlpha(200),
+                                getTooltipItem:
+                                    (group, groupIndex, rod, rodIndex) {
+                                  if (groupIndex < 0 ||
+                                      groupIndex >= emissions.length) {
+                                    return null;
+                                  }
+                                  final site = emissions[groupIndex]['site'];
+                                  final value = rod.toY.toStringAsFixed(1);
+                                  return BarTooltipItem(
+                                    '$site\n$value kg CO2e',
+                                    AppTheme.lightTheme.textTheme.bodySmall!
+                                        .copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
                               ),
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(4)),
-                              width: 0.6, // Adjust bar width for better spacing
-                              spacing: 0.2, // Add spacing between bars
                             ),
-                          ],
+                            titlesData: FlTitlesData(
+                              show: true,
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 40,
+                                  getTitlesWidget: (value, meta) {
+                                    final index = value.toInt();
+                                    if (index < 0 ||
+                                        index >= emissions.length) {
+                                      return const SizedBox();
+                                    }
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: SizedBox(
+                                        width: 60,
+                                        child: Text(
+                                          emissions[index]['site'],
+                                          style: AppTheme
+                                              .lightTheme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            fontSize: 12,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 40,
+                                  getTitlesWidget: (value, meta) {
+                                    return Text(
+                                      value.toInt().toString(),
+                                      style: AppTheme
+                                          .lightTheme.textTheme.bodySmall
+                                          ?.copyWith(
+                                        fontSize: 12,
+                                      ),
+                                    );
+                                  },
+                                  interval: emissions.isNotEmpty
+                                      ? (emissions
+                                              .map((e) =>
+                                                  e['co2e_monthly'] as double)
+                                              .reduce((a, b) => a > b ? a : b) /
+                                          5)
+                                      : 1000,
+                                ),
+                              ),
+                              topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
+                            ),
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              getDrawingHorizontalLine: (value) {
+                                return FlLine(
+                                  color: Colors.grey[200],
+                                  strokeWidth: 1,
+                                );
+                              },
+                            ),
+                            borderData: FlBorderData(show: false),
+                            barGroups: emissions.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final data = entry.value;
+                              final co2e = data['co2e_monthly'] as double;
+                              return BarChartGroupData(
+                                x: index,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: co2e,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        getEmissionColor(co2e).withAlpha(200),
+                                        getEmissionColor(co2e),
+                                      ],
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                    ),
+                                    width:
+                                        screenWidth / (emissions.length * 2.5),
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(8)),
+                                    backDrawRodData: BackgroundBarChartRodData(
+                                      show: true,
+                                      toY: emissions.isNotEmpty
+                                          ? (emissions
+                                                  .map((e) => e['co2e_monthly']
+                                                      as double)
+                                                  .reduce(
+                                                      (a, b) => a > b ? a : b) *
+                                              1.2)
+                                          : 5000,
+                                      color: Colors.grey[100],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                          swapAnimationDuration:
+                              const Duration(milliseconds: 500),
+                          swapAnimationCurve: Curves.easeInOut,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // Legend for Emission Status (using Wrap to prevent overflow)
+                    const SizedBox(height: 12),
                     Wrap(
                       alignment: WrapAlignment.center,
-                      spacing: 8, // Horizontal spacing between items
-                      runSpacing: 4, // Vertical spacing between lines
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
-                        _buildLegendItem(Colors.green, 'Good (<700 kg)'),
+                        _buildLegendItem(Colors.green, 'Good (<3500 kg)'),
                         _buildLegendItem(
-                            Colors.orange, 'Moderate (700-1000 kg)'),
-                        _buildLegendItem(Colors.red, 'Bad (1000-1500 kg)'),
+                            Colors.orange, 'Moderate (3500-5000 kg)'),
+                        _buildLegendItem(Colors.red, 'Bad (5000-7500 kg)'),
                         _buildLegendItem(
-                            Colors.red[900]!, 'Critical (>1500 kg)'),
+                            Colors.red[900]!, 'Critical (>7500 kg)'),
                       ],
                     ),
                   ],
                 ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-          // Site Details
+          // Tabbed Section for Site Details and Recommendations
           Text(
-            "Site Details:",
-            style: AppTheme.lightTheme.textTheme.titleLarge,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-          const SizedBox(height: 8),
-          emissions.isEmpty
-              ? const Center(child: Text("No site data available."))
-              : Container(
-                  padding: const EdgeInsets.all(8.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.grey[300]!, width: 1),
-                  ),
-                  child: Column(
-                    children: emissions
-                        .map((e) => ListTile(
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${e['site']}: ${e['co2e_monthly'].toStringAsFixed(1)} kg CO2e',
-                                      style: AppTheme
-                                          .lightTheme.textTheme.bodyMedium,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Primary: ${e['primary_source'] ?? 'N/A'} ${e['primary_amount'] ?? 0.0} ${getUnitForSource(e['primary_source'])}',
-                                      style: AppTheme
-                                          .lightTheme.textTheme.bodySmall,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                ),
-          const SizedBox(height: 16),
-
-          // Quick Recommendation
-          Text(
-            "Quick Recommendation:",
-            style: AppTheme.lightTheme.textTheme.titleLarge,
+            "Details & Insights:",
+            style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
+              borderRadius: BorderRadius.circular(12.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withAlpha(25),
+                  spreadRadius: 2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Text(
-              briefRecommendation,
-              style: AppTheme.lightTheme.textTheme.bodyMedium,
-              softWrap: true,
+            child: Column(
+              children: [
+                TabBar(
+                  controller: _tabController,
+                  labelColor: Theme.of(context).primaryColor,
+                  unselectedLabelColor: Colors.grey[600],
+                  indicatorColor: Theme.of(context).primaryColor,
+                  labelStyle:
+                      AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  tabs: const [
+                    Tab(text: "Site Details"),
+                    Tab(text: "Recommendations"),
+                  ],
+                ),
+                Container(
+                  height: 200,
+                  padding: const EdgeInsets.all(8.0),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      emissions.isEmpty
+                          ? const Center(child: Text("No site data available."))
+                          : ListView(
+                              children: emissions
+                                  .map((e) => ListTile(
+                                        title: Text(
+                                          '${e['site']}: ${e['co2e_monthly'].toStringAsFixed(1)} kg CO2e',
+                                          style: AppTheme
+                                              .lightTheme.textTheme.bodyMedium,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                        subtitle: Text(
+                                          'Primary: ${e['primary_source'] ?? 'N/A'} ${e['primary_amount'] ?? 0.0} ${getUnitForSource(e['primary_source'])}',
+                                          style: AppTheme
+                                              .lightTheme.textTheme.bodySmall,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ))
+                                  .toList(),
+                            ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          briefRecommendation,
+                          style: AppTheme.lightTheme.textTheme.bodyMedium,
+                          softWrap: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -439,10 +635,9 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  // Helper method to build legend items
   Widget _buildLegendItem(Color color, String label) {
     return Row(
-      mainAxisSize: MainAxisSize.min, // Minimize the Row's size to fit content
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 16,
