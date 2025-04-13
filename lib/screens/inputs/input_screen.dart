@@ -6,18 +6,19 @@ import 'package:logging/logging.dart';
 final _log = Logger('InputScreen');
 
 class InputScreen extends StatefulWidget {
-const InputScreen({super.key});
+  const InputScreen({super.key});
 
-@override
+  @override
   State<InputScreen> createState() => _InputScreenState();
 }
 
 class _InputScreenState extends State<InputScreen> {
-final supabase = Supabase.instance.client;
+  final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-// Form field controllers
-final _siteController = TextEditingController();
+  // Form field controllers
+  String? _institution;
+  final _siteController = TextEditingController();
   String? _primarySource;
   final _primaryAmountController = TextEditingController();
   String? _secondarySource;
@@ -26,15 +27,16 @@ final _siteController = TextEditingController();
   final _customReplenishController = TextEditingController();
   final _hoursController = TextEditingController();
 
-// State variables
-bool isLoading = false;
+  // State variables
+  bool isLoading = false;
   String? errorMessage;
   String? successMessage;
   bool hasSubmitted = false;
-Map<String, dynamic>?
+  Map<String, dynamic>?
       latestEmission; // Store the latest submitted emission data
 
-// Options for dropdowns
+  // Options for dropdowns
+  final List<String> institutions = ['Daystar University', 'USIU'];
   final List<String> energySources = [
     'LPG',
     'Charcoal',
@@ -49,18 +51,18 @@ Map<String, dynamic>?
     'Monthly',
   ];
 
-// Filter secondary source options based on primary source
-List<String> getAvailableSecondarySources() {
+  // Filter secondary source options based on primary source
+  List<String> getAvailableSecondarySources() {
     if (_primarySource == null) {
       return energySources;
     }
     return energySources.where((source) => source != _primarySource).toList();
   }
 
-@override
+  @override
   void initState() {
     super.initState();
-// Subscribe to real-time changes in the emissions table
+    // Subscribe to real-time changes in the emissions table
     supabase
         .channel('public:emissions')
         .onPostgresChanges(
@@ -73,16 +75,19 @@ List<String> getAvailableSecondarySources() {
         )
         .subscribe();
 
-// Fetch initial latest emission data
+    // Fetch initial latest emission data
     _fetchLatestEmission();
   }
 
-// Fetch the latest emission data from the database
+  // Fetch the latest emission data from the database
   Future<void> _fetchLatestEmission() async {
     try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
       final response = await supabase
           .from('emissions')
           .select()
+          .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -97,7 +102,25 @@ List<String> getAvailableSecondarySources() {
     }
   }
 
-// Calculate total emissions (example calculation)
+  // Check for duplicate site within institution
+  Future<bool> _checkDuplicateSite(String institution, String site) async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return false;
+      final response = await supabase
+          .from('emissions')
+          .select()
+          .eq('user_id', userId)
+          .eq('institution', institution)
+          .eq('site', site);
+      return response.isNotEmpty;
+    } catch (error) {
+      _log.severe('Error checking duplicate site:', error);
+      return false;
+    }
+  }
+
+  // Calculate total emissions (unchanged)
   double calculateTotalEmissions(Map<String, dynamic> emission) {
     final double primaryAmount = (emission['primary_amount'] ?? 0).toDouble();
     final double secondaryAmount =
@@ -107,33 +130,47 @@ List<String> getAvailableSecondarySources() {
     return (primaryAmount + secondaryAmount) * hours * emissionFactor;
   }
 
-@override
+  @override
   void dispose() {
     _siteController.dispose();
     _primaryAmountController.dispose();
     _secondaryAmountController.dispose();
     _customReplenishController.dispose();
     _hoursController.dispose();
-supabase.channel('public:emissions').unsubscribe();
-super.dispose();
+    supabase.channel('public:emissions').unsubscribe();
+    super.dispose();
   }
 
-Future<void> submitEmissionData() async {
+  Future<void> submitEmissionData() async {
     setState(() {
       hasSubmitted = true;
     });
 
-if (!_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-setState(() {
+    // Check for duplicate site within institution
+    final site = _siteController.text.trim();
+    if (_institution != null) {
+      final isDuplicate = await _checkDuplicateSite(_institution!, site);
+      if (isDuplicate) {
+        setState(() {
+          errorMessage =
+              "Site '$site' already exists for $_institution. Please use a different site name or update the existing entry.";
+          hasSubmitted = false;
+        });
+        return;
+      }
+    }
+
+    setState(() {
       isLoading = true;
       errorMessage = null;
       successMessage = null;
     });
 
-try {
+    try {
       final user = supabase.auth.currentUser;
       if (user == null) {
         setState(() {
@@ -144,15 +181,16 @@ try {
         return;
       }
 
-// Determine the replenish value to submit
-final String replenishValue = _replenish == 'Other'
+      // Determine the replenish value to submit
+      final String replenishValue = _replenish == 'Other'
           ? _customReplenishController.text.trim()
           : _replenish!;
 
-// Prepare data for submission
+      // Prepare data for submission
       final emissionData = {
         'user_id': user.id,
-        'site': _siteController.text.trim(),
+        'institution': _institution,
+        'site': site,
         'primary_source': _primarySource,
         'primary_amount':
             double.parse(_primaryAmountController.text.trim()).toDouble(),
@@ -164,11 +202,11 @@ final String replenishValue = _replenish == 'Other'
         'hours': double.parse(_hoursController.text.trim()).toDouble(),
       };
 
-// Submit to Supabase
+      // Submit to Supabase
       final response =
           await supabase.from('emissions').insert(emissionData).select();
 
-if (response.isNotEmpty) {
+      if (response.isNotEmpty) {
         setState(() {
           successMessage = "Emission data submitted successfully!";
           isLoading = false;
@@ -184,6 +222,7 @@ if (response.isNotEmpty) {
         _customReplenishController.clear();
         _hoursController.clear();
         setState(() {
+          _institution = null;
           _primarySource = null;
           _secondarySource = null;
           _replenish = null;
@@ -206,7 +245,7 @@ if (response.isNotEmpty) {
     }
   }
 
-// Function to clear error messages when the user starts interacting
+  // Function to clear error messages when the user starts interacting
   void _clearErrorMessage() {
     if (errorMessage != null) {
       setState(() {
@@ -215,18 +254,18 @@ if (response.isNotEmpty) {
     }
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
-// Get available secondary sources
+    // Get available secondary sources
     final availableSecondarySources = getAvailableSecondarySources();
 
-return Scaffold(
-appBar: AppBar(
+    return Scaffold(
+      appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text("Log Emission Data"),
         backgroundColor: AppTheme.primaryColor,
-),
-body: CustomScrollView(
+      ),
+      body: CustomScrollView(
         slivers: [
           // Main Content
           SliverToBoxAdapter(
@@ -245,6 +284,46 @@ body: CustomScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Institution
+                            Text(
+                              "Institution",
+                              style: AppTheme.lightTheme.textTheme.titleLarge
+                                  ?.copyWith(
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _institution,
+                              decoration: const InputDecoration(
+                                hintText: "Select institution",
+                                prefixIcon: Icon(Icons.school,
+                                    color: AppTheme.primaryColor),
+                              ),
+                              items: institutions.map((inst) {
+                                return DropdownMenuItem<String>(
+                                  value: inst,
+                                  child: Text(inst),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _institution = value;
+                                  _clearErrorMessage();
+                                  if (hasSubmitted) {
+                                    _formKey.currentState?.validate();
+                                  }
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return "Please select an institution.";
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
                             // Site
                             Text(
                               "Site",
@@ -638,6 +717,11 @@ body: CustomScrollView(
                               ),
                             )
                           else ...[
+                            Text(
+                              "Institution: ${latestEmission!['institution'] ?? 'N/A'}",
+                              style: AppTheme.lightTheme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
                             Text(
                               "Site: ${latestEmission!['site']}",
                               style: AppTheme.lightTheme.textTheme.bodyMedium,
