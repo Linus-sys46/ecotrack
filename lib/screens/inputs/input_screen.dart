@@ -133,7 +133,7 @@ class _InputScreenState extends State<InputScreen> {
     const double priorMean = 350.0; // Typical kitchen emissions (kg CO2e/month)
     const double priorStd = 150.0; // Variability
     double z = (co2e - priorMean) / priorStd;
-    return z.abs() > 2; // Outside ~100–600 kg
+    return z.abs() > 3; // Adjusted range to handle smaller values
   }
 
   // Calculate CO2e
@@ -220,7 +220,7 @@ class _InputScreenState extends State<InputScreen> {
     try {
       final response = await supabase.from('emissions').insert({
         ...emissionData,
-        'co2e_monthly': co2e,
+        'co2_monthly': co2e,
       }).select();
 
       if (response.isNotEmpty) {
@@ -811,46 +811,45 @@ class _InputScreenState extends State<InputScreen> {
                   const SizedBox(height: 16),
 
                   // Success/Error Messages
-                  if (successMessage != null)
-                    AnimatedOpacity(
-                      opacity: successMessage != null ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
+                  if (successMessage != null || errorMessage != null)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal, // Prevent overflow
                       child: Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle,
-                                color: Colors.green, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              successMessage!,
-                              style: AppTheme.lightTheme.textTheme.bodyMedium
-                                  ?.copyWith(
-                                color: Colors.green,
+                            if (successMessage != null)
+                              Row(
+                                children: [
+                                  Icon(Icons.check_circle,
+                                      color: Colors.green, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    successMessage!,
+                                    style: AppTheme
+                                        .lightTheme.textTheme.bodyMedium
+                                        ?.copyWith(
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (errorMessage != null)
-                    AnimatedOpacity(
-                      opacity: errorMessage != null ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline,
-                                color: AppTheme.errorColor, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              errorMessage!,
-                              style: AppTheme.lightTheme.textTheme.bodyMedium
-                                  ?.copyWith(
-                                color: AppTheme.errorColor,
+                            if (errorMessage != null)
+                              Row(
+                                children: [
+                                  Icon(Icons.error_outline,
+                                      color: AppTheme.errorColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    errorMessage!,
+                                    style: AppTheme
+                                        .lightTheme.textTheme.bodyMedium
+                                        ?.copyWith(
+                                      color: AppTheme.errorColor,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -1073,7 +1072,7 @@ class _InputScreenState extends State<InputScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        "Total Emissions: ${(latestEmission!['co2e_monthly'] ?? calculateTotalEmissions(latestEmission!)).toStringAsFixed(2)} kg CO2e",
+                                        "Total Emissions: ${(latestEmission!['co2_monthly'] ?? calculateTotalEmissions(latestEmission!)).toStringAsFixed(2)} kg CO2e",
                                         style: AppTheme
                                             .lightTheme.textTheme.bodyMedium
                                             ?.copyWith(

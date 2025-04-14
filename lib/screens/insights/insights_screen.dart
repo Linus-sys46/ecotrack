@@ -36,7 +36,7 @@ class InsightsScreen extends StatelessWidget {
 
   double getTotalEmissions() {
     return emissions.fold(
-        0.0, (sum, item) => sum + (item['co2e_monthly']?.toDouble() ?? 0.0));
+        0.0, (sum, item) => sum + (item['co2_monthly']?.toDouble() ?? 0.0));
   }
 
   Map<String, double> getMonthlyEmissions() {
@@ -48,7 +48,7 @@ class InsightsScreen extends StatelessWidget {
           String monthKey =
               "${date.year}-${date.month.toString().padLeft(2, '0')}";
           monthlyData[monthKey] = (monthlyData[monthKey] ?? 0.0) +
-              (entry['co2e_monthly']?.toDouble() ?? 0.0);
+              (entry['co2_monthly']?.toDouble() ?? 0.0);
         } catch (e) {
           print(
               "Error parsing date for entry: ${entry['created_at']}, error: $e");
@@ -56,6 +56,7 @@ class InsightsScreen extends StatelessWidget {
         }
       }
     }
+    
     return monthlyData;
   }
 
@@ -69,15 +70,15 @@ class InsightsScreen extends StatelessWidget {
       final String? secondarySource = entry['secondary_source'];
       final double secondaryAmount =
           (entry['secondary_amount'] ?? 0.0).toDouble();
-      final double totalCo2e = entry['co2e_monthly']?.toDouble() ?? 0.0;
+      final double totalCo2e = entry['co2_monthly']?.toDouble() ?? 0.0;
 
-      double primaryCo2e = entry['co2e_monthly'] != null
+      double primaryCo2e = entry['co2_monthly'] != null
           ? totalCo2e
           : calculator.calculateEmissionForSource(primarySource, primaryAmount);
       double secondaryCo2e = 0.0;
 
       if (secondarySource != null && secondaryAmount > 0) {
-        if (entry['co2e_monthly'] != null) {
+        if (entry['co2_monthly'] != null) {
           double totalAmount = primaryAmount + secondaryAmount;
           if (totalAmount > 0) {
             primaryCo2e = totalCo2e * (primaryAmount / totalAmount);
