@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/theme.dart';
 
-// EmissionCalculator class (unchanged)
 class EmissionCalculator {
   static const double lpgFactor = 3.0; // kg CO2e/kg LPG
-  static const double electricityFactor = 0.4; // kg CO2e/kWh
-  static const double charcoalFactor = 1.5;
-  static const double dieselFactor = 2.68;
-  static const double poultryMethaneFactor = 0.02;
-  static const double poultryN2OFactor = 0.01;
+  static const double electricityFactor = 0.2; // kg CO2e/kWh (Kenya grid)
+  static const double charcoalFactor = 1.8;
+  static const double dieselFactor = 2.7;
 
   double calculateEmissionForSource(String? source, double amount) {
     switch (source) {
@@ -22,7 +19,7 @@ class EmissionCalculator {
       case 'Diesel':
         return amount * dieselFactor;
       default:
-        return 0.0; // Default for 'Other' or null
+        return 0.0;
     }
   }
 }
@@ -37,13 +34,11 @@ class InsightsScreen extends StatelessWidget {
     required this.status,
   });
 
-  // Calculate total emissions
   double getTotalEmissions() {
     return emissions.fold(
         0.0, (sum, item) => sum + (item['co2e_monthly']?.toDouble() ?? 0.0));
   }
 
-  // Group emissions by month for trend analysis
   Map<String, double> getMonthlyEmissions() {
     Map<String, double> monthlyData = {};
     for (var entry in emissions) {
@@ -64,7 +59,6 @@ class InsightsScreen extends StatelessWidget {
     return monthlyData;
   }
 
-  // Group emissions by both primary and secondary sources
   Map<String, double> getEmissionsBySource() {
     Map<String, double> sourceData = {};
     final calculator = EmissionCalculator();
@@ -75,34 +69,30 @@ class InsightsScreen extends StatelessWidget {
       final String? secondarySource = entry['secondary_source'];
       final double secondaryAmount =
           (entry['secondary_amount'] ?? 0.0).toDouble();
-      final double hours = (entry['hours'] ?? 0.0).toDouble();
       final double totalCo2e = entry['co2e_monthly']?.toDouble() ?? 0.0;
 
-      // Calculate CO2e contributions for primary and secondary sources (before hours multiplier)
-      final double primaryCo2ePerHour =
-          calculator.calculateEmissionForSource(primarySource, primaryAmount);
-      final double secondaryCo2ePerHour = secondarySource != null
-          ? calculator.calculateEmissionForSource(
-              secondarySource, secondaryAmount)
-          : 0.0;
-      final double totalCo2ePerHour = primaryCo2ePerHour + secondaryCo2ePerHour;
+      double primaryCo2e = entry['co2e_monthly'] != null
+          ? totalCo2e
+          : calculator.calculateEmissionForSource(primarySource, primaryAmount);
+      double secondaryCo2e = 0.0;
 
-      // Avoid division by zero
-      if (totalCo2ePerHour == 0 || hours == 0) continue;
+      if (secondarySource != null && secondaryAmount > 0) {
+        if (entry['co2e_monthly'] != null) {
+          double totalAmount = primaryAmount + secondaryAmount;
+          if (totalAmount > 0) {
+            primaryCo2e = totalCo2e * (primaryAmount / totalAmount);
+            secondaryCo2e = totalCo2e * (secondaryAmount / totalAmount);
+          }
+        } else {
+          secondaryCo2e = calculator.calculateEmissionForSource(
+              secondarySource, secondaryAmount);
+          primaryCo2e = calculator.calculateEmissionForSource(
+              primarySource, primaryAmount);
+        }
+      }
 
-      // Calculate the proportion of totalCo2e attributed to each source
-      final double primaryProportion = primaryCo2ePerHour / totalCo2ePerHour;
-      final double secondaryProportion =
-          secondaryCo2ePerHour / totalCo2ePerHour;
-
-      final double primaryCo2e = totalCo2e * primaryProportion;
-      final double secondaryCo2e = totalCo2e * secondaryProportion;
-
-      // Add primary source contribution
       sourceData[primarySource] =
           (sourceData[primarySource] ?? 0.0) + primaryCo2e;
-
-      // Add secondary source contribution if it exists
       if (secondarySource != null && secondaryCo2e > 0) {
         sourceData[secondarySource] =
             (sourceData[secondarySource] ?? 0.0) + secondaryCo2e;
@@ -116,16 +106,14 @@ class InsightsScreen extends StatelessWidget {
     final totalEmissions = getTotalEmissions();
     final monthlyEmissions = getMonthlyEmissions();
     final emissionsBySource = getEmissionsBySource();
+    final bool isSingleSite = emissions.length <= 1;
 
-    // Sort monthly emissions for the line chart
     final sortedMonths = monthlyEmissions.keys.toList()..sort();
     final monthlyValues = sortedMonths.isNotEmpty
         ? sortedMonths
             .map((month) => monthlyEmissions[month]!.toDouble())
             .toList()
         : <double>[];
-
-    // Calculate the interval for x-axis labels to prevent overlap
     final int labelInterval = sortedMonths.isNotEmpty
         ? (sortedMonths.length / 5).ceil().clamp(1, sortedMonths.length)
         : 1;
@@ -144,21 +132,37 @@ class InsightsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Total Emissions and Status
+                  // Overview Section
                   Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                      side: BorderSide(color: Colors.grey[200]!, width: 1),
+                    ),
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "Overview",
-                            style: AppTheme.lightTheme.textTheme.titleLarge
-                                ?.copyWith(
-                              color: AppTheme.primaryColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                          Row(
+                            children: [
+                              Icon(Icons.analytics,
+                                  color: AppTheme.primaryColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Overview",
+                                  style: AppTheme
+                                      .lightTheme.textTheme.titleLarge
+                                      ?.copyWith(
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 12),
                           Row(
@@ -188,11 +192,14 @@ class InsightsScreen extends StatelessWidget {
                                   "Status: $status",
                                   style: AppTheme.lightTheme.textTheme.bodyLarge
                                       ?.copyWith(
-                                    color: status == 'Good'
-                                        ? Colors.green
-                                        : status == 'Moderate'
-                                            ? Colors.orange
-                                            : Colors.red,
+                                    color:
+                                        status == 'Typical' || status == 'Good'
+                                            ? Colors.blue
+                                            : status == 'Low'
+                                                ? Colors.green
+                                                : status == 'Moderate'
+                                                    ? Colors.orange
+                                                    : Colors.red,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
@@ -206,289 +213,417 @@ class InsightsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Emissions Trend Over Time (Line Chart)
-                  Container(
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                  // Emissions Trend Over Time
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                      side: BorderSide(color: Colors.grey[200]!, width: 1),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Emissions Trend Over Time",
-                          style: AppTheme.lightTheme.textTheme.titleLarge
-                              ?.copyWith(
-                            color: AppTheme.primaryColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 12),
-                        monthlyEmissions.isEmpty
-                            ? const Center(
-                                child: Text("No trend data available."),
-                              )
-                            : SizedBox(
-                                height: 200,
-                                child: LineChart(
-                                  LineChartData(
-                                    gridData: const FlGridData(
-                                      show: true,
-                                      drawVerticalLine: false,
-                                      horizontalInterval: 200,
-                                    ),
-                                    titlesData: FlTitlesData(
-                                      leftTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          reservedSize: 40,
-                                          getTitlesWidget: (value, meta) =>
-                                              Text(
-                                            value.toStringAsFixed(0),
-                                            style: AppTheme
-                                                .lightTheme.textTheme.bodySmall,
-                                          ),
-                                          interval: monthlyValues.isNotEmpty
-                                              ? (monthlyValues.reduce(
-                                                          (a, b) =>
-                                                              a > b ? a : b) *
-                                                      0.25)
-                                                  .toDouble()
-                                              : 200,
-                                        ),
-                                      ),
-                                      bottomTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          interval: labelInterval.toDouble(),
-                                          getTitlesWidget: (value, meta) {
-                                            final index = value.toInt();
-                                            if (index < 0 ||
-                                                index >= sortedMonths.length) {
-                                              return const SizedBox.shrink();
-                                            }
-                                            return Padding(
-                                              padding: const EdgeInsets.only(
-                                                  top: 8.0),
-                                              child: Text(
-                                                sortedMonths[index],
-                                                style: AppTheme.lightTheme
-                                                    .textTheme.bodySmall,
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 1,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                      topTitles: const AxisTitles(
-                                          sideTitles:
-                                              SideTitles(showTitles: false)),
-                                      rightTitles: const AxisTitles(
-                                          sideTitles:
-                                              SideTitles(showTitles: false)),
-                                    ),
-                                    borderData: FlBorderData(show: false),
-                                    lineBarsData: [
-                                      LineChartBarData(
-                                        spots: monthlyValues
-                                            .asMap()
-                                            .entries
-                                            .map((entry) => FlSpot(
-                                                  entry.key.toDouble(),
-                                                  entry.value,
-                                                ))
-                                            .toList(),
-                                        isCurved: true,
-                                        color: AppTheme.primaryColor,
-                                        barWidth: 3,
-                                        dotData: const FlDotData(show: true),
-                                        belowBarData: BarAreaData(
-                                          show: true,
-                                          color: AppTheme.primaryColor
-                                              .withAlpha(51),
-                                        ),
-                                      ),
-                                    ],
-                                    minY: 0,
-                                    maxY: monthlyValues.isNotEmpty
-                                        ? monthlyValues.reduce(
-                                                (a, b) => a > b ? a : b) *
-                                            1.2
-                                        : 1000,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.trending_up,
+                                  color: AppTheme.primaryColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Emissions Trend Over Time",
+                                  style: AppTheme
+                                      .lightTheme.textTheme.titleLarge
+                                      ?.copyWith(
+                                    color: AppTheme.primaryColor,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
-                      ],
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          monthlyEmissions.isEmpty
+                              ? Row(
+                                  children: [
+                                    Icon(Icons.warning_amber,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "No trend data available.",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : SizedBox(
+                                  height: 200,
+                                  child: LineChart(
+                                    LineChartData(
+                                      gridData: FlGridData(
+                                        show: true,
+                                        drawVerticalLine: false,
+                                        horizontalInterval: 200,
+                                        getDrawingHorizontalLine: (value) {
+                                          return FlLine(
+                                            color: Colors.grey[200]!,
+                                            strokeWidth: 1,
+                                          );
+                                        },
+                                      ),
+                                      titlesData: FlTitlesData(
+                                        leftTitles: AxisTitles(
+                                          sideTitles: SideTitles(
+                                            showTitles: true,
+                                            reservedSize: 40,
+                                            getTitlesWidget: (value, meta) =>
+                                                Text(
+                                              value.toStringAsFixed(0),
+                                              style: AppTheme.lightTheme
+                                                  .textTheme.bodySmall,
+                                            ),
+                                            interval: monthlyValues.isNotEmpty
+                                                ? (monthlyValues.reduce(
+                                                            (a, b) =>
+                                                                a > b ? a : b) *
+                                                        0.25)
+                                                    .toDouble()
+                                                : 200,
+                                          ),
+                                        ),
+                                        bottomTitles: AxisTitles(
+                                          sideTitles: SideTitles(
+                                            showTitles: true,
+                                            interval: labelInterval.toDouble(),
+                                            getTitlesWidget: (value, meta) {
+                                              final index = value.toInt();
+                                              if (index < 0 ||
+                                                  index >=
+                                                      sortedMonths.length) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return Padding(
+                                                padding: const EdgeInsets.only(
+                                                    top: 8.0),
+                                                child: Text(
+                                                  sortedMonths[index],
+                                                  style: AppTheme.lightTheme
+                                                      .textTheme.bodySmall,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        topTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false)),
+                                        rightTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false)),
+                                      ),
+                                      borderData: FlBorderData(show: false),
+                                      lineBarsData: [
+                                        LineChartBarData(
+                                          spots: monthlyValues
+                                              .asMap()
+                                              .entries
+                                              .map((entry) => FlSpot(
+                                                    entry.key.toDouble(),
+                                                    entry.value,
+                                                  ))
+                                              .toList(),
+                                          isCurved: true,
+                                          color: AppTheme.primaryColor,
+                                          barWidth: 3,
+                                          dotData: FlDotData(show: true),
+                                          belowBarData: BarAreaData(
+                                            show: true,
+                                            color: AppTheme.primaryColor
+                                                .withAlpha(51),
+                                          ),
+                                        ),
+                                      ],
+                                      minY: 0,
+                                      maxY: monthlyValues.isNotEmpty
+                                          ? monthlyValues.reduce(
+                                                  (a, b) => a > b ? a : b) *
+                                              1.2
+                                          : (isSingleSite ? 600 : 5000),
+                                    ),
+                                    // Removed invalid parameter
+                                  ),
+                                ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Emissions Breakdown by Source (Pie Chart)
-                  Container(
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                  // Emissions by Source
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                      side: BorderSide(color: Colors.grey[200]!, width: 1),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Emissions by Source",
-                          style: AppTheme.lightTheme.textTheme.titleLarge
-                              ?.copyWith(
-                            color: AppTheme.primaryColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 24),
-                        emissionsBySource.isEmpty
-                            ? const Center(
-                                child: Text("No source data available."))
-                            : Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8.0),
-                                child: SizedBox(
-                                  height: 200,
-                                  child: PieChart(
-                                    PieChartData(
-                                      sections: emissionsBySource.entries
-                                          .map((entry) {
-                                        final index = emissionsBySource.keys
-                                            .toList()
-                                            .indexOf(entry.key);
-                                        return PieChartSectionData(
-                                          color: AppTheme.chartColors[index %
-                                              AppTheme.chartColors.length],
-                                          value: entry.value,
-                                          title:
-                                              "${(entry.value / totalEmissions * 100).toStringAsFixed(1)}%",
-                                          radius: 90,
-                                          titleStyle: AppTheme
-                                              .lightTheme.textTheme.bodySmall
-                                              ?.copyWith(
-                                            color: Colors.white,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          titlePositionPercentageOffset: 0.6,
-                                        );
-                                      }).toList(),
-                                      sectionsSpace: 2,
-                                      centerSpaceRadius: 40,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isMobilePortrait = constraints.maxWidth < 600 ||
+                              MediaQuery.of(context).orientation ==
+                                  Orientation.portrait;
+                          final chartHeight = isMobilePortrait ? 150.0 : 200.0;
+                          final chartRadius = isMobilePortrait ? 60.0 : 90.0;
+                          final centerSpaceRadius =
+                              isMobilePortrait ? 30.0 : 40.0;
+                          final legendFontSize = isMobilePortrait ? 12.0 : 14.0;
+                          final legendSpacing = isMobilePortrait ? 6.0 : 8.0;
+                          final legendRunSpacing = isMobilePortrait ? 6.0 : 8.0;
+                          final chartLegendSpacing =
+                              isMobilePortrait ? 16.0 : 12.0;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.pie_chart,
+                                      color: AppTheme.primaryColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Emissions by Source",
+                                      style: AppTheme
+                                          .lightTheme.textTheme.titleLarge
+                                          ?.copyWith(
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                        const SizedBox(height: 12),
-                        // Legend for Pie Chart
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: emissionsBySource.keys.map((source) {
-                            final index =
-                                emissionsBySource.keys.toList().indexOf(source);
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  color: AppTheme.chartColors[
-                                      index % AppTheme.chartColors.length],
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  source,
-                                  style:
-                                      AppTheme.lightTheme.textTheme.bodyMedium,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ],
+                              const SizedBox(height: 12),
+                              emissionsBySource.isEmpty
+                                  ? Row(
+                                      children: [
+                                        Icon(Icons.warning_amber,
+                                            color: AppTheme.accentColor,
+                                            size: 20),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            "No source data available.",
+                                            style: AppTheme.lightTheme.textTheme
+                                                .bodyMedium,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0),
+                                      child: SizedBox(
+                                        height: chartHeight,
+                                        child: PieChart(
+                                          PieChartData(
+                                            sections: emissionsBySource.entries
+                                                .map((entry) {
+                                              final index = emissionsBySource
+                                                  .keys
+                                                  .toList()
+                                                  .indexOf(entry.key);
+                                              return PieChartSectionData(
+                                                color: AppTheme.chartColors[
+                                                    index %
+                                                        AppTheme.chartColors
+                                                            .length],
+                                                value: entry.value,
+                                                title:
+                                                    "${(entry.value / totalEmissions * 100).toStringAsFixed(1)}%",
+                                                radius: chartRadius,
+                                                titleStyle: AppTheme.lightTheme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: Colors.white,
+                                                  fontSize: isMobilePortrait
+                                                      ? 8.0
+                                                      : 10.0,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                titlePositionPercentageOffset:
+                                                    0.6,
+                                              );
+                                            }).toList(),
+                                            sectionsSpace: 2,
+                                            centerSpaceRadius:
+                                                centerSpaceRadius,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                              SizedBox(height: chartLegendSpacing),
+                              Wrap(
+                                spacing: legendSpacing,
+                                runSpacing: legendRunSpacing,
+                                alignment: WrapAlignment.center,
+                                children: emissionsBySource.keys.map((source) {
+                                  final index = emissionsBySource.keys
+                                      .toList()
+                                      .indexOf(source);
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 12,
+                                        height: 12,
+                                        color: AppTheme.chartColors[index %
+                                            AppTheme.chartColors.length],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        source,
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: legendFontSize,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Comparison with Average
-                  Container(
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                      side: BorderSide(color: Colors.grey[200]!, width: 1),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Comparison with Average",
-                          style: AppTheme.lightTheme.textTheme.titleLarge
-                              ?.copyWith(
-                            color: AppTheme.primaryColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Icon(Icons.compare_arrows,
-                                color: AppTheme.accentColor, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "Your Emissions: ${totalEmissions.toStringAsFixed(1)} kg CO2e",
-                                style: AppTheme.lightTheme.textTheme.bodyLarge,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.compare_arrows,
+                                  color: AppTheme.primaryColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Comparison with Average",
+                                  style: AppTheme
+                                      .lightTheme.textTheme.titleLarge
+                                      ?.copyWith(
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.compare_arrows,
-                                color: AppTheme.secondaryColor, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "Average User: 5000 kg CO2e",
-                                style: AppTheme.lightTheme.textTheme.bodyLarge,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          totalEmissions > 5000
-                              ? "Your emissions are ${(totalEmissions - 5000).toStringAsFixed(1)} kg above average."
-                              : "Your emissions are ${(5000 - totalEmissions).toStringAsFixed(1)} kg below average.",
-                          style: AppTheme.lightTheme.textTheme.bodyMedium
-                              ?.copyWith(
-                            color: totalEmissions > 5000
-                                ? AppTheme.errorColor
-                                : Colors.green,
+                            ],
                           ),
-                          softWrap: true,
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(Icons.eco,
+                                  color: AppTheme.accentColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Your Emissions: ${totalEmissions.toStringAsFixed(1)} kg CO2e",
+                                  style:
+                                      AppTheme.lightTheme.textTheme.bodyLarge,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.recommend,
+                                  color: AppTheme.secondaryColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isSingleSite
+                                      ? "Recommended: 350 kg CO2e"
+                                      : "Recommended: 3500 kg CO2e",
+                                  style:
+                                      AppTheme.lightTheme.textTheme.bodyLarge,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                  totalEmissions > (isSingleSite ? 350 : 3500)
+                                      ? Icons.warning_amber
+                                      : Icons.check_circle_outline,
+                                  color: totalEmissions >
+                                          (isSingleSite ? 350 : 3500)
+                                      ? AppTheme.errorColor
+                                      : Colors.green,
+                                  size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isSingleSite
+                                      ? totalEmissions > 350
+                                          ? "Your emissions are ${(totalEmissions - 350).toStringAsFixed(1)} kg above average."
+                                          : "Your emissions are ${(350 - totalEmissions).toStringAsFixed(1)} kg below average."
+                                      : totalEmissions > 3500
+                                          ? "Your emissions are ${(totalEmissions - 3500).toStringAsFixed(1)} kg above average."
+                                          : "Your emissions are ${(3500 - totalEmissions).toStringAsFixed(1)} kg below average.",
+                                  style: AppTheme
+                                      .lightTheme.textTheme.bodyMedium
+                                      ?.copyWith(
+                                    color: (isSingleSite &&
+                                                totalEmissions > 350) ||
+                                            (!isSingleSite &&
+                                                totalEmissions > 3500)
+                                        ? AppTheme.errorColor
+                                        : Colors.green,
+                                  ),
+                                  softWrap: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
 
                   // Footer
                   Center(

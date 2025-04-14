@@ -7,14 +7,12 @@ class AppTheme {
   static const Color secondaryColor = Color(0xFF2E7D32); // Forest Green
   static const Color backgroundColor = Color(0xFFF5F7FA); // Off-White
   static const Color accentColor = Color(0xFFFFCA28); // Sunny Yellow
-  static const Color errorColor = Color(0xFFEF5350); // Coral Red
-
-  // Additional Colors for Charts and UI
+  static const Color errorColor =
+      Color(0xFFEF5350); // Coral Red  // Additional Colors for Charts and UI
   static const Color cardBackground = Color(0xFFFFFFFF); // White
   static const Color textPrimary = Color(0xFF212121); // Charcoal
-  static const Color textSecondary = Color(0xFF616161); // Slate Grey
-
-  // Chart Colors (for bars, lines, etc.)
+  static const Color textSecondary =
+      Color(0xFF616161); // Slate Grey  // Chart Colors (for bars, lines, etc.)
   static const List<Color> chartColors = [
     Color(0xFF26A69A), // Teal
     Color(0xFF2E7D32), // Forest Green
@@ -22,7 +20,6 @@ class AppTheme {
     Color(0xFF42A5F5), // Soft Blue
     Color(0xFFFF8A65), // Soft Coral
   ];
-
   static ThemeData lightTheme = ThemeData(
     primaryColor: primaryColor,
     scaffoldBackgroundColor: backgroundColor,
@@ -162,3 +159,4 @@ class AppTheme {
     ),
   );
 }
+

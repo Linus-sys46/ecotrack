@@ -70,8 +70,8 @@ class DashboardScreenState extends State<DashboardScreen> {
         child: NavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: _onItemTapped,
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
+          backgroundColor: AppTheme.cardBackground,
+          surfaceTintColor: AppTheme.cardBackground,
           elevation: 3,
           indicatorColor: AppTheme.primaryColor,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

@@ -32,8 +32,7 @@ class _InputScreenState extends State<InputScreen> {
   String? errorMessage;
   String? successMessage;
   bool hasSubmitted = false;
-  Map<String, dynamic>?
-      latestEmission; // Store the latest submitted emission data
+  Map<String, dynamic>? latestEmission;
 
   // Options for dropdowns
   final List<String> institutions = ['Daystar University', 'USIU'];
@@ -51,7 +50,21 @@ class _InputScreenState extends State<InputScreen> {
     'Monthly',
   ];
 
-  // Filter secondary source options based on primary source
+  // Emission factors (kg CO2e per unit)
+  final Map<String, double> emissionFactors = {
+    'LPG': 3.0, // kg CO2e/kg
+    'Charcoal': 1.8,
+    'Electricity': 0.2, // kg CO2e/kWh (Kenya grid)
+    'Diesel': 2.7, // kg CO2e/liter
+    'Other': 1.0, // Placeholder
+  };
+
+  // Get unit for source
+  String getUnitForSource(String? source) {
+    return source == 'Electricity' ? 'kWh' : 'kg';
+  }
+
+  // Filter secondary source options
   List<String> getAvailableSecondarySources() {
     if (_primarySource == null) {
       return energySources;
@@ -62,7 +75,6 @@ class _InputScreenState extends State<InputScreen> {
   @override
   void initState() {
     super.initState();
-    // Subscribe to real-time changes in the emissions table
     supabase
         .channel('public:emissions')
         .onPostgresChanges(
@@ -74,12 +86,9 @@ class _InputScreenState extends State<InputScreen> {
           },
         )
         .subscribe();
-
-    // Fetch initial latest emission data
     _fetchLatestEmission();
   }
 
-  // Fetch the latest emission data from the database
   Future<void> _fetchLatestEmission() async {
     try {
       final userId = supabase.auth.currentUser?.id;
@@ -91,7 +100,6 @@ class _InputScreenState extends State<InputScreen> {
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
-
       if (response != null) {
         setState(() {
           latestEmission = response;
@@ -102,7 +110,7 @@ class _InputScreenState extends State<InputScreen> {
     }
   }
 
-  // Check for duplicate site within institution
+  // Check for duplicate site
   Future<bool> _checkDuplicateSite(String institution, String site) async {
     try {
       final userId = supabase.auth.currentUser?.id;
@@ -120,14 +128,27 @@ class _InputScreenState extends State<InputScreen> {
     }
   }
 
-  // Calculate total emissions (unchanged)
+  // Bayesian-inspired anomaly detection
+  bool isAnomalous(double co2e) {
+    const double priorMean = 350.0; // Typical kitchen emissions (kg CO2e/month)
+    const double priorStd = 150.0; // Variability
+    double z = (co2e - priorMean) / priorStd;
+    return z.abs() > 2; // Outside ~100–600 kg
+  }
+
+  // Calculate CO2e
+  double calculateCo2e(Map<String, dynamic> data) {
+    double primaryAmount = data['primary_amount']?.toDouble() ?? 0;
+    double secondaryAmount = data['secondary_amount']?.toDouble() ?? 0;
+    String primarySource = data['primary_source'] ?? 'Other';
+    String secondarySource = data['secondary_source'] ?? 'Other';
+    double primaryFactor = emissionFactors[primarySource] ?? 1.0;
+    double secondaryFactor = emissionFactors[secondarySource] ?? 1.0;
+    return primaryAmount * primaryFactor + secondaryAmount * secondaryFactor;
+  }
+
   double calculateTotalEmissions(Map<String, dynamic> emission) {
-    final double primaryAmount = (emission['primary_amount'] ?? 0).toDouble();
-    final double secondaryAmount =
-        (emission['secondary_amount'] ?? 0).toDouble();
-    final double hours = (emission['hours'] ?? 0).toDouble();
-    const double emissionFactor = 0.5; // Example: 0.5 kg CO2 per unit
-    return (primaryAmount + secondaryAmount) * hours * emissionFactor;
+    return calculateCo2e(emission);
   }
 
   @override
@@ -150,18 +171,44 @@ class _InputScreenState extends State<InputScreen> {
       return;
     }
 
-    // Check for duplicate site within institution
     final site = _siteController.text.trim();
-    if (_institution != null) {
-      final isDuplicate = await _checkDuplicateSite(_institution!, site);
-      if (isDuplicate) {
-        setState(() {
-          errorMessage =
-              "Site '$site' already exists for $_institution. Please use a different site name or update the existing entry.";
-          hasSubmitted = false;
-        });
-        return;
-      }
+    final emissionData = {
+      'user_id': supabase.auth.currentUser!.id,
+      'institution': _institution,
+      'site': site,
+      'primary_source': _primarySource,
+      'primary_amount': double.parse(_primaryAmountController.text.trim()),
+      'secondary_source': _secondarySource,
+      'secondary_amount': _secondaryAmountController.text.isNotEmpty
+          ? double.parse(_secondaryAmountController.text.trim())
+          : null,
+      'replenish': _replenish == 'Other'
+          ? _customReplenishController.text.trim()
+          : _replenish!,
+      'hours': double.parse(_hoursController.text.trim()),
+    };
+
+    // Calculate CO2e
+    double co2e = calculateCo2e(emissionData);
+
+    // Anomaly detection
+    if (isAnomalous(co2e)) {
+      setState(() {
+        errorMessage =
+            "Emission value (${co2e.toStringAsFixed(1)} kg CO2e) is outside typical range (100–600 kg). Please verify.";
+        hasSubmitted = false;
+      });
+      return;
+    }
+
+    // Duplicate check
+    if (await _checkDuplicateSite(_institution!, site)) {
+      setState(() {
+        errorMessage =
+            "Site '$site' already exists for $_institution. Use a different name or update existing data.";
+        hasSubmitted = false;
+      });
+      return;
     }
 
     setState(() {
@@ -171,40 +218,10 @@ class _InputScreenState extends State<InputScreen> {
     });
 
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        setState(() {
-          errorMessage = "You must be logged in to submit data.";
-          isLoading = false;
-        });
-        _log.warning('No user logged in during submission.');
-        return;
-      }
-
-      // Determine the replenish value to submit
-      final String replenishValue = _replenish == 'Other'
-          ? _customReplenishController.text.trim()
-          : _replenish!;
-
-      // Prepare data for submission
-      final emissionData = {
-        'user_id': user.id,
-        'institution': _institution,
-        'site': site,
-        'primary_source': _primarySource,
-        'primary_amount':
-            double.parse(_primaryAmountController.text.trim()).toDouble(),
-        'secondary_source': _secondarySource,
-        'secondary_amount': _secondaryAmountController.text.isNotEmpty
-            ? double.parse(_secondaryAmountController.text.trim()).toDouble()
-            : null,
-        'replenish': replenishValue,
-        'hours': double.parse(_hoursController.text.trim()).toDouble(),
-      };
-
-      // Submit to Supabase
-      final response =
-          await supabase.from('emissions').insert(emissionData).select();
+      final response = await supabase.from('emissions').insert({
+        ...emissionData,
+        'co2e_monthly': co2e,
+      }).select();
 
       if (response.isNotEmpty) {
         setState(() {
@@ -212,9 +229,9 @@ class _InputScreenState extends State<InputScreen> {
           isLoading = false;
           hasSubmitted = false;
         });
-        _log.info('Emission data submitted successfully: $emissionData');
+        _log.info('Emission data submitted: $emissionData');
 
-        // Clear the form
+        // Clear form
         _formKey.currentState!.reset();
         _siteController.clear();
         _primaryAmountController.clear();
@@ -228,7 +245,6 @@ class _InputScreenState extends State<InputScreen> {
           _replenish = null;
         });
 
-        // Hide success message after 3 seconds
         await Future.delayed(const Duration(seconds: 3));
         if (mounted) {
           setState(() {
@@ -245,7 +261,6 @@ class _InputScreenState extends State<InputScreen> {
     }
   }
 
-  // Function to clear error messages when the user starts interacting
   void _clearErrorMessage() {
     if (errorMessage != null) {
       setState(() {
@@ -256,7 +271,6 @@ class _InputScreenState extends State<InputScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get available secondary sources
     final availableSecondarySources = getAvailableSecondarySources();
 
     return Scaffold(
@@ -267,7 +281,6 @@ class _InputScreenState extends State<InputScreen> {
       ),
       body: CustomScrollView(
         slivers: [
-          // Main Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -276,6 +289,12 @@ class _InputScreenState extends State<InputScreen> {
                 children: [
                   // Form Section
                   Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      side: BorderSide(color: Colors.grey[200]!, width: 1),
+                    ),
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Form(
@@ -284,21 +303,34 @@ class _InputScreenState extends State<InputScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Institution
-                            Text(
-                              "Institution",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.school,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Institution",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
                               value: _institution,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Select institution",
                                 prefixIcon: Icon(Icons.school,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               items: institutions.map((inst) {
                                 return DropdownMenuItem<String>(
@@ -324,21 +356,34 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Site
-                            Text(
-                              "Site",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.location_on,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Site",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _siteController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "e.g., Chilton’s Restaurant",
                                 prefixIcon: Icon(Icons.location_on,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               onChanged: (value) {
                                 _clearErrorMessage();
@@ -355,21 +400,34 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Primary Source
-                            Text(
-                              "Primary Energy Source",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.power,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Primary Energy Source",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
                               value: _primarySource,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Select primary source",
                                 prefixIcon: Icon(Icons.power,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               items: energySources.map((source) {
                                 return DropdownMenuItem<String>(
@@ -399,21 +457,35 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Primary Amount
-                            Text(
-                              "Primary Amount (kg or kWh)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.scale,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Primary Amount (${getUnitForSource(_primarySource)})",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _primaryAmountController,
-                              decoration: const InputDecoration(
-                                hintText: "e.g., 20",
+                              decoration: InputDecoration(
+                                hintText:
+                                    "e.g., 20 ${getUnitForSource(_primarySource)}",
                                 prefixIcon: Icon(Icons.scale,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -435,21 +507,34 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Secondary Source (Optional)
-                            Text(
-                              "Secondary Energy Source (Optional)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.power,
+                                    color: AppTheme.accentColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Secondary Energy Source (Optional)",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
                               value: _secondarySource,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Select secondary source",
                                 prefixIcon: Icon(Icons.power,
                                     color: AppTheme.accentColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               items: availableSecondarySources.map((source) {
                                 return DropdownMenuItem<String>(
@@ -469,21 +554,35 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Secondary Amount (Optional)
-                            Text(
-                              "Secondary Amount (kg or kWh, Optional)",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.scale,
+                                    color: AppTheme.accentColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Secondary Amount (${getUnitForSource(_secondarySource)}, Optional)",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _secondaryAmountController,
-                              decoration: const InputDecoration(
-                                hintText: "e.g., 10",
+                              decoration: InputDecoration(
+                                hintText:
+                                    "e.g., 10 ${getUnitForSource(_secondarySource)}",
                                 prefixIcon: Icon(Icons.scale,
                                     color: AppTheme.accentColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -494,7 +593,7 @@ class _InputScreenState extends State<InputScreen> {
                               },
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return null; // Optional field
+                                  return null;
                                 }
                                 if (double.tryParse(value) == null ||
                                     double.parse(value) <= 0) {
@@ -505,21 +604,34 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Replenish
-                            Text(
-                              "Replenish Frequency",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.eco,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Replenish Frequency",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
                               value: _replenish,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Select frequency",
                                 prefixIcon: Icon(Icons.eco,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               items: replenishOptions.map((option) {
                                 return DropdownMenuItem<String>(
@@ -546,20 +658,34 @@ class _InputScreenState extends State<InputScreen> {
                             ),
                             if (_replenish == 'Other') ...[
                               const SizedBox(height: 16),
-                              Text(
-                                "Custom Replenish Frequency",
-                                style: AppTheme.lightTheme.textTheme.titleLarge
-                                    ?.copyWith(
-                                  color: AppTheme.primaryColor,
-                                ),
+                              Row(
+                                children: [
+                                  Icon(Icons.edit,
+                                      color: AppTheme.primaryColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Custom Replenish Frequency",
+                                      style: AppTheme
+                                          .lightTheme.textTheme.titleMedium
+                                          ?.copyWith(
+                                        color: AppTheme.primaryColor,
+                                        fontSize: 16.0,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _customReplenishController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   hintText: "e.g., Biweekly",
                                   prefixIcon: Icon(Icons.edit,
                                       color: AppTheme.primaryColor),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8.0),
+                                  ),
                                 ),
                                 onChanged: (value) {
                                   _clearErrorMessage();
@@ -578,21 +704,34 @@ class _InputScreenState extends State<InputScreen> {
                             ],
                             const SizedBox(height: 16),
 
-                            // Hours
-                            Text(
-                              "Operational Hours",
-                              style: AppTheme.lightTheme.textTheme.titleLarge
-                                  ?.copyWith(
-                                color: AppTheme.primaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.timer,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Operational Hours",
+                                    style: AppTheme
+                                        .lightTheme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: AppTheme.primaryColor,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _hoursController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "e.g., 8",
                                 prefixIcon: Icon(Icons.timer,
                                     color: AppTheme.primaryColor),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
                               ),
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -617,55 +756,55 @@ class _InputScreenState extends State<InputScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
                   // Submit Button
                   Center(
                     child: GestureDetector(
                       onTap: isLoading ? null : submitEmissionData,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 32),
-                        decoration: BoxDecoration(
-                          color: isLoading
-                              ? AppTheme.primaryColor.withAlpha(128)
-                              : AppTheme.primaryColor,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withAlpha(77),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+                      child: Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                          side: BorderSide(
+                              color: isLoading
+                                  ? Colors.grey[400]!
+                                  : AppTheme.primaryColor,
+                              width: 1),
                         ),
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.upload,
-                                      color: Colors.white, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Submit Data",
-                                    style: AppTheme
-                                        .lightTheme.textTheme.bodyLarge
-                                        ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                        color: isLoading
+                            ? Colors.grey[200]
+                            : AppTheme.primaryColor,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 24),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
                                   ),
-                                ],
-                              ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.upload,
+                                        color: Colors.white, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Submit Data",
+                                      style: AppTheme
+                                          .lightTheme.textTheme.bodyLarge
+                                          ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
                       ),
                     ),
                   ),
@@ -673,102 +812,289 @@ class _InputScreenState extends State<InputScreen> {
 
                   // Success/Error Messages
                   if (successMessage != null)
-                    Center(
-                      child: Text(
-                        successMessage!,
-                        style:
-                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.green,
+                    AnimatedOpacity(
+                      opacity: successMessage != null ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle,
+                                color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              successMessage!,
+                              style: AppTheme.lightTheme.textTheme.bodyMedium
+                                  ?.copyWith(
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   if (errorMessage != null)
-                    Center(
-                      child: Text(
-                        errorMessage!,
-                        style:
-                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.errorColor,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // Latest Emission Data
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Latest Emission Data",
-                            style: AppTheme.lightTheme.textTheme.titleLarge
-                                ?.copyWith(
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (latestEmission == null)
-                            const Center(
-                              child: Text(
-                                "No emission data available.",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            )
-                          else ...[
+                    AnimatedOpacity(
+                      opacity: errorMessage != null ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.error_outline,
+                                color: AppTheme.errorColor, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Institution: ${latestEmission!['institution'] ?? 'N/A'}",
-                              style: AppTheme.lightTheme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Site: ${latestEmission!['site']}",
-                              style: AppTheme.lightTheme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Primary Source: ${latestEmission!['primary_source']}",
-                              style: AppTheme.lightTheme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Primary Amount: ${latestEmission!['primary_amount']} kg/kWh",
-                              style: AppTheme.lightTheme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            if (latestEmission!['secondary_source'] != null)
-                              Text(
-                                "Secondary Source: ${latestEmission!['secondary_source']}",
-                                style: AppTheme.lightTheme.textTheme.bodyMedium,
-                              ),
-                            if (latestEmission!['secondary_source'] != null)
-                              const SizedBox(height: 8),
-                            if (latestEmission!['secondary_amount'] != null)
-                              Text(
-                                "Secondary Amount: ${latestEmission!['secondary_amount']} kg/kWh",
-                                style: AppTheme.lightTheme.textTheme.bodyMedium,
-                              ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Hours: ${latestEmission!['hours']}",
-                              style: AppTheme.lightTheme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Total Emissions: ${calculateTotalEmissions(latestEmission!).toStringAsFixed(2)} kg CO2",
+                              errorMessage!,
                               style: AppTheme.lightTheme.textTheme.bodyMedium
                                   ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryColor,
+                                color: AppTheme.errorColor,
                               ),
                             ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
+                  const SizedBox(height: 16),
+
+                  // Latest Emission Data
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobilePortrait = constraints.maxWidth < 600 ||
+                          MediaQuery.of(context).orientation ==
+                              Orientation.portrait;
+                      final titleFontSize = isMobilePortrait ? 16.0 : 18.0;
+                      final bodyFontSize = isMobilePortrait ? 14.0 : 16.0;
+                      final itemSpacing = isMobilePortrait ? 10.0 : 8.0;
+
+                      return Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                          side: BorderSide(color: Colors.grey[200]!, width: 1),
+                        ),
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.history,
+                                      color: AppTheme.primaryColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Latest Emission Data",
+                                      style: AppTheme
+                                          .lightTheme.textTheme.titleMedium
+                                          ?.copyWith(
+                                        color: AppTheme.primaryColor,
+                                        fontSize: titleFontSize,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (latestEmission == null)
+                                Row(
+                                  children: [
+                                    Icon(Icons.warning_amber,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "No emission data available.",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          color: Colors.grey,
+                                          fontSize: bodyFontSize,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else ...[
+                                Row(
+                                  children: [
+                                    Icon(Icons.school,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Institution: ${latestEmission!['institution'] ?? 'N/A'}",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: itemSpacing),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Site: ${latestEmission!['site']}",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: itemSpacing),
+                                Row(
+                                  children: [
+                                    Icon(Icons.power,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Primary Source: ${latestEmission!['primary_source']}",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: itemSpacing),
+                                Row(
+                                  children: [
+                                    Icon(Icons.scale,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Primary Amount: ${latestEmission!['primary_amount']} ${getUnitForSource(latestEmission!['primary_source'])}",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (latestEmission!['secondary_source'] !=
+                                    null) ...[
+                                  SizedBox(height: itemSpacing),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.power,
+                                          color: AppTheme.accentColor,
+                                          size: 20),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          "Secondary Source: ${latestEmission!['secondary_source']}",
+                                          style: AppTheme
+                                              .lightTheme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            fontSize: bodyFontSize,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                if (latestEmission!['secondary_amount'] !=
+                                    null) ...[
+                                  SizedBox(height: itemSpacing),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.scale,
+                                          color: AppTheme.accentColor,
+                                          size: 20),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          "Secondary Amount: ${latestEmission!['secondary_amount']} ${getUnitForSource(latestEmission!['secondary_source'])}",
+                                          style: AppTheme
+                                              .lightTheme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            fontSize: bodyFontSize,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                SizedBox(height: itemSpacing),
+                                Row(
+                                  children: [
+                                    Icon(Icons.timer,
+                                        color: AppTheme.accentColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Hours: ${latestEmission!['hours']}",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: itemSpacing),
+                                Row(
+                                  children: [
+                                    Icon(Icons.co2,
+                                        color: AppTheme.primaryColor, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Total Emissions: ${(latestEmission!['co2e_monthly'] ?? calculateTotalEmissions(latestEmission!)).toStringAsFixed(2)} kg CO2e",
+                                        style: AppTheme
+                                            .lightTheme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.primaryColor,
+                                          fontSize: bodyFontSize,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
 
                   // Footer
                   Center(
