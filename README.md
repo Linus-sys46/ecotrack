@@ -1,5 +1,26 @@
-# ECOTRACK
+# Carbon Emission Monitoring Application
 
-This is a mobile application used to capture and track greenhouse gas emissions from an instituition.
-Recommendations are provided if the GHGs produced exceed the standard greenhouse gas emissions.
-To top it off, up to date news related to greenhouse gases emissions are provided in the application for user engagement.
+A cross-platform mobile application designed to help higher learning institutions track and reduce carbon emissions from electricity and LPG usage.
+
+## Technologies
+- Flutter
+- Supabase
+- Provider (State Management)
+- News API
+- fl_chart (Data visualization)
+
+## Features
+- Carbon emission tracking
+- Interactive dashboard
+- Emission report generation
+- Sustainability news feed
+- Personalized recommendations
+
+## Screens
+- Dashboard
+- Inputs screen
+- News screen
+- Splash screen
+
+## Purpose
+The application supports institutions in monitoring environmental impact and making data-driven sustainability decisions.
