@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Core Colors
-  static const Color primaryColor = Color(0xFF26A69A); // Teal
-  static const Color secondaryColor = Color(0xFF2E7D32); // Forest Green
-  static const Color backgroundColor = Color(0xFFF5F7FA); // Off-White
-  static const Color accentColor = Color(0xFFFFCA28); // Sunny Yellow
-  static const Color errorColor =
-      Color(0xFFEF5350); // Coral Red  // Additional Colors for Charts and UI
-  static const Color cardBackground = Color(0xFFFFFFFF); // White
-  static const Color textPrimary = Color(0xFF212121); // Charcoal
-  static const Color textSecondary =
-      Color(0xFF616161); // Slate Grey  // Chart Colors (for bars, lines, etc.)
+  // Core Colors – refreshed palette
+  static const Color primaryColor = Color(0xFF2E7D32); // Deep eco green
+  static const Color secondaryColor = Color(0xFF00BFA5); // Teal accent
+  static const Color backgroundColor = Color(0xFFF3F6FB); // Soft off-white
+  static const Color accentColor = Color(0xFFFFC857); // Warm highlight
+  static const Color errorColor = Color(0xFFE53935);
+  static const Color cardBackground = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF1A1C1E);
+  static const Color textSecondary = Color(0xFF5F6368);
   static const List<Color> chartColors = [
     Color(0xFF26A69A), // Teal
     Color(0xFF2E7D32), // Forest Green
@@ -21,25 +19,29 @@ class AppTheme {
     Color(0xFFFF8A65), // Soft Coral
   ];
   static ThemeData lightTheme = ThemeData(
+    useMaterial3: true,
     primaryColor: primaryColor,
     scaffoldBackgroundColor: backgroundColor,
-    colorScheme: ColorScheme.fromSwatch().copyWith(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: primaryColor,
       primary: primaryColor,
       secondary: secondaryColor,
-      error: errorColor,
       surface: cardBackground,
+      background: backgroundColor,
+      error: errorColor,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: textPrimary,
     ),
+    visualDensity: VisualDensity.adaptivePlatformDensity,
     textTheme: TextTheme(
       displayLarge: GoogleFonts.poppins(
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: FontWeight.bold,
         color: textPrimary,
       ),
       titleLarge: GoogleFonts.poppins(
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
@@ -58,6 +60,9 @@ class AppTheme {
         fontWeight: FontWeight.w400,
         color: textSecondary,
       ),
+    ).apply(
+      bodyColor: textPrimary,
+      displayColor: textPrimary,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -65,10 +70,10 @@ class AppTheme {
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
-        elevation: 4,
-        shadowColor: primaryColor.withAlpha(77),
+        elevation: 3,
+        shadowColor: primaryColor.withOpacity(0.25),
         textStyle: GoogleFonts.poppins(
           fontSize: 16,
           fontWeight: FontWeight.w500,
@@ -84,7 +89,7 @@ class AppTheme {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: primaryColor.withAlpha(77)),
+        borderSide: BorderSide(color: primaryColor.withOpacity(0.25)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -96,8 +101,8 @@ class AppTheme {
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: primaryColor,
-      elevation: 2,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       titleTextStyle: GoogleFonts.poppins(
         fontSize: 20,
         fontWeight: FontWeight.w600,
@@ -113,11 +118,11 @@ class AppTheme {
         borderRadius: BorderRadius.circular(16),
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: cardBackground,
-      elevation: 3,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
     ),

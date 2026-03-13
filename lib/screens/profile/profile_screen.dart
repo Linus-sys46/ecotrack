@@ -21,38 +21,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchUserProfile() async {
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        if (mounted) {
-          setState(() {
-            userProfile = null;
-            isLoading = false;
-          });
-        }
-        return;
-      }
+    final user = supabase.auth.currentUser;
+    if (!mounted) return;
 
-      final response = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (mounted) {
-        setState(() {
-          userProfile = response;
-          isLoading = false;
-        });
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          userProfile = null;
-          isLoading = false;
-        });
-      }
+    if (user == null) {
+      setState(() {
+        userProfile = null;
+        isLoading = false;
+      });
+      return;
     }
+
+    setState(() {
+      userProfile = {
+        'full_name': user.userMetadata?['full_name'] ?? 'User',
+        'email': user.email ?? 'No email provided',
+      };
+      isLoading = false;
+    });
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ecotrack/services/auth_service.dart';
 import '../../config/theme.dart';
 
@@ -69,33 +70,44 @@ if (fullNameError != null || emailError != null || passwordError != null) {
 setState(() => isLoading = true);
 
 try {
-  final response = await _authService.signUp(
+  await _authService.signUp(
     emailController.text.trim(),
     passwordController.text.trim(),
     fullNameController.text.trim(),
   );
 
-  if (response.session != null && mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Successfully registered!"),
-        backgroundColor: Colors
-            .green, 
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        "Account created. Please check your email to verify before logging in.",
       ),
-    );
+      backgroundColor: Colors.green,
+    ),
+  );
+} on AuthException catch (e) {
+  if (!mounted) return;
 
-    await Future.delayed(const Duration(seconds: 2));
+  String message = 'Signup failed. Please try again.';
 
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    }
+  if (e.statusCode == '429' || e.code == 'over_email_send_rate_limit') {
+    message =
+        'Too many sign-up emails were requested. Please wait a few minutes and try again.';
+  } else if (e.message.isNotEmpty) {
+    message = e.message;
   }
-} catch (e) {
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Signup failed: ${e.toString()}')),
-    );
-  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+} catch (_) {
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Signup failed. Please try again later.'),
+    ),
+  );
 }
 
 if (mounted) setState(() => isLoading = false);

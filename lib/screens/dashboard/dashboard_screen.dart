@@ -1,6 +1,7 @@
 import 'package:ecotrack/screens/dashboard/dashboard_content.dart';
 import 'package:ecotrack/screens/inputs/input_screen.dart';
 import 'package:ecotrack/screens/insights/insights_screen.dart';
+import 'package:ecotrack/screens/news/news_screen.dart';
 import 'package:ecotrack/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
@@ -36,6 +37,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       ),
       const InputScreen(),
       InsightsScreen(emissions: emissions, status: status),
+      const NewsScreen(),
       const ProfileScreen(),
     ];
   }
@@ -90,6 +92,11 @@ class DashboardScreenState extends State<DashboardScreen> {
               icon: Icon(Icons.lightbulb_circle_outlined, size: 28),
               selectedIcon: Icon(Icons.lightbulb_circle, size: 28),
               label: "Insights",
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.public, size: 28),
+              selectedIcon: Icon(Icons.public_outlined, size: 28),
+              label: "News",
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline, size: 28),
