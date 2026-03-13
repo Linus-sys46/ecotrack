@@ -1,4 +1,4 @@
-# Carbon Emission Monitoring Application
+# Carbon Emission Monitoring Application -ECOTRACK
 
 A cross-platform mobile application designed to help higher learning institutions track and reduce carbon emissions from electricity and LPG usage.
 
